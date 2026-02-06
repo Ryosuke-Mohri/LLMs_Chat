@@ -62,6 +62,21 @@ def get_api_key_for_region(region: str | None, regions: dict | None = None) -> s
     return ""
 
 
+def get_anthropic_endpoint_for_region(region: str | None) -> str:
+    """
+    リージョンに対応する Anthropic 用エンドポイントを .env から取得する。
+    例: East US2 → AZURE_OPENAI_EAST_US2_ANTHROPIC_ENDPOINT
+    未設定の場合は Azure OpenAI 用 ENDPOINT をフォールバック。セッションにキャッシュされた
+    endpoint ではなく常にここで取得することで、.env の ENDPOINT (Anthropic 系) を確実に使う。
+    """
+    if not region:
+        return ""
+    region_display_map = _config.REGION_DISPLAY_MAP
+    region_key = region_display_map.get(region, region)
+    cfg = _config.get_region_config(region_key)
+    return (cfg.get("anthropic_endpoint") or cfg.get("endpoint") or "").strip()
+
+
 def get_all_models(regions: dict | None = None) -> list[dict]:
     """
     全モデル情報を取得。

@@ -19,4 +19,21 @@
 #   python-dotenv を入れると .env を自動読込。未導入時は環境変数で指定。
 # =============================================================================
 
-import src.llm_select_chat.app_main  # noqa: F401  # アプリ本体を実行
+import streamlit as st
+
+# import は set_page_config より前に行う（app_main のトップレベルでは st を呼ばない）
+from src.llm_select_chat.app_main import run_app
+
+# set_page_config はメインスクリプトで「最初の st 呼び出し」である必要がある
+st.set_page_config(
+    page_title="LLM Select Chat",
+    page_icon="🤖",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+try:
+    run_app()
+except Exception as e:
+    st.error(f"アプリ実行エラー: {type(e).__name__}: {e}")
+    st.exception(e)

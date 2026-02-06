@@ -39,14 +39,18 @@ def call_llm_chat(
     start = time.time()
     if model_type == "anthropic":
         client = anthropic.Anthropic(api_key=api_key, base_url=endpoint)
-        msg_list = [m for m in messages if m.get("role") != "system"]
-        system = system_message or ""
+        # システム以外のみ。role/content を必ず str にし None を渡さない（SDK の by_alias 等の不具合回避）
+        msg_list = [
+            {"role": (m.get("role") or "user"), "content": (m.get("content") or "")}
+            for m in messages if m.get("role") != "system"
+        ]
+        system = (system_message or "").strip()
         if not system and messages and messages[0].get("role") == "system":
-            system = messages[0].get("content", "")
+            system = (messages[0].get("content") or "").strip()
         response = client.messages.create(
             model=deployment_name,
             max_tokens=max_tokens,
-            system=system,
+            system=system or "",
             messages=msg_list,
         )
         elapsed = time.time() - start
