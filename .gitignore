@@ -1,6 +1,9 @@
 # PoC フォルダ（フォルダと中身を無視）
 PoC/
 
+# アプリデータ（ログ等）
+data/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

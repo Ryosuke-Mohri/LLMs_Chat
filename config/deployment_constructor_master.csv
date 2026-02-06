@@ -1,0 +1,14 @@
+deployment_name,constructor
+DeepSeek-V3-0324-dev,DeepSeek
+DeepSeek-V3.2-prod,DeepSeek
+DeepSeek-V3.2-Speciale-prod,DeepSeek
+gpt-4.1-prod,OpenAI
+gpt-5.1-dev,OpenAI
+gpt-oss-120b-prod,OpenAI
+grok-4-fast-prod,xAI
+Kimi-K2-Thinking-dev,Moonshot
+Llama-4-Maverick-17B-128E-dev,Meta
+claude-haiku-4.5-prod,Anthropic
+claude-opus-4.5-prod,Anthropic
+claude-sonnet-4.5-prod,Anthropic
+gpt-5.2-prod,OpenAI
