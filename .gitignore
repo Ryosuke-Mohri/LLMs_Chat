@@ -1,8 +1,11 @@
 # PoC フォルダ（フォルダと中身を無視）
 PoC/
 
-# アプリデータ（ログ等）
+# アプリデータ（会話ログ等）
 data/
+
+# デバッグ・アプリケーションログ
+logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -21,6 +24,9 @@ downloads/
 eggs/
 .eggs/
 lib/
+# ↑ を上書き: プロジェクト独自モジュール (lib/) は追跡する
+!lib/
+!lib/**
 lib64/
 parts/
 sdist/

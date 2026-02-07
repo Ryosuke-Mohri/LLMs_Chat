@@ -33,6 +33,9 @@ import anthropic
 
 load_dotenv()
 
+from lib.logger import get_logger
+logger = get_logger(__name__)
+
 # ========================================
 # ページ設定
 # ========================================
@@ -381,6 +384,17 @@ REGION_DISPLAY_MAP = {
     "US (East US 2)": "East US2",
 }
 
+# --- 起動ログ ---
+logger.info("=== アプリケーション起動 ===")
+logger.info("LOG_FILE_PATH=%s", LOG_FILE_PATH)
+logger.info("API_VERSION=%s", API_VERSION)
+for _rname, _rinfo in REGIONS.items():
+    logger.info(
+        "REGION[%s]: endpoint=%s, deployments=%s",
+        _rname, _rinfo.get("endpoint", ""), _rinfo.get("deployments", []),
+    )
+logger.debug("REGION_DISPLAY_MAP=%s", REGION_DISPLAY_MAP)
+
 def format_region_display(region):
     """アプリ内表示用にリージョン表記を統一する。None/空のときは '不明'。"""
     if not region:
@@ -405,6 +419,7 @@ def load_constructor_master():
             name, constructor = pair.split(":", 1)
             result[name.strip()] = constructor.strip()
     _constructor_master_cache = result
+    logger.debug("load_constructor_master: %d 件ロード", len(result))
     return result
 
 def get_constructor_for_deployment(deployment_name):
@@ -473,15 +488,26 @@ def get_pricing_for_model(deployment_name, model_type):
 # ========================================
 def load_log_data():
     """ログデータを読み込む"""
-    if LOG_FILE_PATH.exists():
-        with open(LOG_FILE_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {"sessions": {}}
+    try:
+        if LOG_FILE_PATH.exists():
+            with open(LOG_FILE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            logger.debug("load_log_data: %d セッション読み込み", len(data.get("sessions", {})))
+            return data
+        logger.debug("load_log_data: ファイルなし、空データ返却")
+        return {"sessions": {}}
+    except Exception:
+        logger.exception("load_log_data: ファイル読み込み失敗 (%s)", LOG_FILE_PATH)
+        return {"sessions": {}}
 
 def save_log_data(data):
     """ログデータを保存する"""
-    with open(LOG_FILE_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+    try:
+        with open(LOG_FILE_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2, default=str)
+        logger.debug("save_log_data: 保存完了 (%d セッション)", len(data.get("sessions", {})))
+    except Exception:
+        logger.exception("save_log_data: ファイル保存失敗 (%s)", LOG_FILE_PATH)
 
 def calculate_cost(prompt_tokens, completion_tokens, pricing=None):
     """トークン数からコストを計算"""
@@ -558,7 +584,8 @@ def get_all_models():
                     "display_name": f"{constructor_icon} {dep} ({region_name}) {constructor}"
                 })
         except Exception:
-            pass
+            logger.exception("get_all_models: リージョン '%s' の処理中にエラー", region_name)
+    logger.info("get_all_models: %d モデルを検出", len(all_models))
     return all_models
 
 def format_timestamp(ts_str):
@@ -566,11 +593,16 @@ def format_timestamp(ts_str):
     try:
         dt = datetime.fromisoformat(ts_str)
         return dt.strftime("%Y/%m/%d %H:%M:%S")
-    except:
+    except Exception:
+        logger.warning("format_timestamp: パース失敗 ts_str=%s", ts_str)
         return ts_str
 
 def generate_session_name_with_llm(session_id, model_info, conversation_history):
     """LLMを使ってセッション名を生成"""
+    logger.info(
+        "generate_session_name_with_llm: session_id=%s, deployment=%s, model_type=%s",
+        session_id, model_info.get("deployment_name"), model_info.get("model_type"),
+    )
     # 会話履歴から要約用のテキストを作成
     conversation_text = ""
     for msg in conversation_history[:6]:  # 最初の6メッセージまで
@@ -580,6 +612,7 @@ def generate_session_name_with_llm(session_id, model_info, conversation_history)
             conversation_text += f"AI: {msg['content'][:100]}\n"
     
     if not conversation_text:
+        logger.debug("generate_session_name_with_llm: 会話テキストなし、スキップ")
         return None
     
     prompt = f"""以下の会話内容を最大20文字で要約し、セッション名として適切なタイトルを生成してください。
@@ -594,7 +627,12 @@ def generate_session_name_with_llm(session_id, model_info, conversation_history)
         if not api_key:
             api_key = get_api_key_for_region(model_info.get("region", ""))
         
+        start_time = time.time()
         if model_type == "anthropic":
+            logger.debug(
+                "generate_session_name_with_llm: Anthropic API 呼び出し開始 endpoint=%s, model=%s",
+                model_info.get("endpoint"), model_info.get("deployment_name"),
+            )
             client = anthropic.Anthropic(
                 api_key=api_key,
                 base_url=model_info.get("endpoint", ""),
@@ -605,7 +643,15 @@ def generate_session_name_with_llm(session_id, model_info, conversation_history)
                 messages=[{"role": "user", "content": prompt}]
             )
             generated_name = response.content[0].text.strip() if response.content else None
+            logger.debug(
+                "generate_session_name_with_llm: Anthropic レスポンス response_id=%s, input_tokens=%s, output_tokens=%s",
+                response.id, response.usage.input_tokens, response.usage.output_tokens,
+            )
         else:
+            logger.debug(
+                "generate_session_name_with_llm: OpenAI API 呼び出し開始 endpoint=%s, model=%s",
+                model_info.get("endpoint"), model_info.get("deployment_name"),
+            )
             client = AzureOpenAI(
                 api_key=api_key,
                 api_version=model_info.get("api_version", "2024-12-01-preview"),
@@ -619,13 +665,23 @@ def generate_session_name_with_llm(session_id, model_info, conversation_history)
                 temperature=0.7
             )
             generated_name = response.choices[0].message.content.strip() if response.choices else None
+            logger.debug(
+                "generate_session_name_with_llm: OpenAI レスポンス response_id=%s, prompt_tokens=%s, completion_tokens=%s",
+                response.id, response.usage.prompt_tokens, response.usage.completion_tokens,
+            )
         
+        elapsed = time.time() - start_time
         # 20文字に切り詰め
         if generated_name and len(generated_name) > 20:
             generated_name = generated_name[:20]
         
+        logger.info(
+            "generate_session_name_with_llm: 完了 generated_name='%s', elapsed=%.3fs",
+            generated_name, elapsed,
+        )
         return generated_name
     except Exception as e:
+        logger.exception("generate_session_name_with_llm: エラー session_id=%s", session_id)
         st.error(f"セッション名生成エラー: {e}")
         return None
 
@@ -665,6 +721,7 @@ sessions = log_data.get("sessions", {})
 
 # 新規セッション作成ボタン
 if st.sidebar.button("➕ 新規セッション", use_container_width=True):
+    logger.info("サイドバー: 新規セッションボタン押下")
     st.session_state.current_session_id = None
     st.session_state.conversation_history = []
     st.session_state.selected_model = None
@@ -732,6 +789,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
         # セッションカード風のボタン（2行表示）
         button_label = f"{display_name}\n{model_display}"
         if st.button(button_label, key=f"btn_{session_id}", use_container_width=True):
+            logger.info("セッション選択: session_id=%s, name=%s", session_id, session_name)
             st.session_state.current_session_id = session_id
             st.session_state.conversation_history = session_info.get("conversation_history", [])
             model_info_copy = model_info.copy()
@@ -756,6 +814,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                             log_data = load_log_data()
                             if session_id in log_data.get("sessions", {}):
                                 old_name = log_data["sessions"][session_id]["session_name"]
+                                logger.info("サイドバー名前変更: session_id=%s, '%s' → '%s'", session_id, old_name, new_name.strip())
                                 log_data["sessions"][session_id]["session_name"] = new_name.strip()
                                 log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
                                 log_data["sessions"][session_id]["name_changes"].append({
@@ -798,6 +857,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
             # セッション終了/再開
             if status == "active":
                 if st.button("🏁 終了", key=f"menu_end_{session_id}", use_container_width=True):
+                    logger.info("サイドバー: セッション終了 session_id=%s", session_id)
                     log_data = load_log_data()
                     session_data = log_data["sessions"][session_id]
                     messages = session_data.get("messages", [])
@@ -826,10 +886,12 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                         "session_duration_seconds": round(session_duration, 3),
                         "conversation_length": len(session_data.get("conversation_history", []))
                     }
+                    logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs", total_turns, total_tokens, total_cost, session_duration)
                     save_log_data(log_data)
                     st.rerun()
             else:
                 if st.button("🔄 再開", key=f"menu_resume_{session_id}", use_container_width=True):
+                    logger.info("サイドバー: セッション再開 session_id=%s", session_id)
                     log_data = load_log_data()
                     log_data["sessions"][session_id]["status"] = "active"
                     log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
@@ -850,6 +912,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                 col_a, col_b = st.columns(2)
                 with col_a:
                     if st.button("✓ 削除", key=f"confirm_del_{session_id}", type="primary"):
+                        logger.info("サイドバー: セッション削除確定 session_id=%s", session_id)
                         log_data = load_log_data()
                         log_data["sessions"][session_id]["deleted"] = True
                         log_data["sessions"][session_id]["deleted_at"] = datetime.now().isoformat()
@@ -921,6 +984,7 @@ if st.session_state.view_mode == "trash":
     if deleted_sessions:
         # ゴミ箱を空にするボタン（上部）
         if st.button("🗑️ ゴミ箱を空にする", type="primary", use_container_width=False):
+            logger.info("ゴミ箱を空にする操作")
             log_data = load_log_data()
             for sid, sinfo in list(log_data.get("sessions", {}).items()):
                 if sinfo.get("deleted", False) and not sinfo.get("purged_from_trash", False):
@@ -1033,6 +1097,11 @@ else:
                     session_start = datetime.now()
                     new_session_id = session_start.strftime("%Y%m%d_%H%M%S") + "_" + str(uuid.uuid4())[:8]
                     auto_session_name = f"Session_{session_start.strftime('%Y%m%d_%H%M%S')}"
+                    logger.info(
+                        "新規セッション作成: session_id=%s, deployment=%s, region=%s, model_type=%s",
+                        new_session_id, selected_model_info["deployment_name"],
+                        selected_model_info["region"], selected_model_info["model_type"],
+                    )
                     
                     config = selected_model_info["config"]
                     
@@ -1075,6 +1144,7 @@ else:
                     st.session_state.is_new_session = False
                     st.rerun()
         else:
+            logger.warning("利用可能なモデルが 0 件。REGIONS 設定を確認してください。")
             st.error("利用可能なモデルがありません。設定ファイルを確認してください。")
 
     else:
@@ -1101,6 +1171,7 @@ else:
                     if new_name and new_name != session_name:
                         log_data = load_log_data()
                         old_name = log_data["sessions"][st.session_state.current_session_id]["session_name"]
+                        logger.info("メイン名前変更: session_id=%s, '%s' → '%s'", st.session_state.current_session_id, old_name, new_name)
                         log_data["sessions"][st.session_state.current_session_id]["session_name"] = new_name
                         log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
                         log_data["sessions"][st.session_state.current_session_id]["name_changes"].append({
@@ -1138,6 +1209,7 @@ else:
                 # セッション終了/再開
                 if session_status == "active":
                     if st.button("🏁 このセッションを終了", key="end_session_btn", use_container_width=True):
+                        logger.info("メイン: セッション終了 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
                         session_data = log_data["sessions"][st.session_state.current_session_id]
                         messages = session_data.get("messages", [])
@@ -1166,11 +1238,13 @@ else:
                             "session_duration_seconds": round(session_duration, 3),
                             "conversation_length": len(session_data.get("conversation_history", []))
                         }
+                        logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs", total_turns, total_tokens, total_cost, session_duration)
                         save_log_data(log_data)
                         st.success("セッションを終了しました")
                         st.rerun()
                 else:
                     if st.button("🔄 セッションを再開", key="resume_session_btn", use_container_width=True):
+                        logger.info("メイン: セッション再開 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
                         log_data["sessions"][st.session_state.current_session_id]["status"] = "active"
                         log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
@@ -1184,6 +1258,7 @@ else:
                     col_a, col_b = st.columns(2)
                     with col_a:
                         if st.button("✓ 削除", key="confirm_del_main", type="primary"):
+                            logger.info("メイン: セッション削除確定 session_id=%s", st.session_state.current_session_id)
                             log_data = load_log_data()
                             log_data["sessions"][st.session_state.current_session_id]["deleted"] = True
                             log_data["sessions"][st.session_state.current_session_id]["deleted_at"] = datetime.now().isoformat()
@@ -1395,6 +1470,10 @@ else:
         
         if not is_completed and submit_button and user_input.strip():
             # API呼び出し
+            logger.info(
+                "チャット送信: session_id=%s, input_chars=%d",
+                st.session_state.current_session_id, len(user_input.strip()),
+            )
             model_type = model_info.get("model_type", "openai")
             type_display = get_model_type_display(model_type)
             deployment_name = model_info.get("deployment_name", "")
@@ -1428,6 +1507,11 @@ else:
                     # ========================================
                     if model_type == "anthropic":
                         # Anthropic クライアント初期化
+                        logger.info(
+                            "API呼び出し開始 [Anthropic]: deployment=%s, endpoint=%s, region=%s, history_len=%d",
+                            deployment_name, model_info.get("endpoint"), model_info.get("region"),
+                            len(st.session_state.conversation_history),
+                        )
                         client = anthropic.Anthropic(
                             api_key=api_key,
                             base_url=model_info.get("endpoint", ""),
@@ -1462,8 +1546,25 @@ else:
                         response_model = response.model
                         response_id = response.id
                         
+                        logger.info(
+                            "API応答完了 [Anthropic]: response_id=%s, model=%s, elapsed=%.3fs, "
+                            "prompt_tokens=%d, completion_tokens=%d, total_tokens=%d, finish_reason=%s",
+                            response_id, response_model, elapsed,
+                            prompt_tokens, completion_tokens, total_tokens_turn, finish_reason,
+                        )
+                        logger.debug(
+                            "API応答詳細 [Anthropic]: response_chars=%d, stop_reason=%s",
+                            len(ai_response), finish_reason,
+                        )
+                        
                     else:
                         # OpenAI クライアント初期化
+                        logger.info(
+                            "API呼び出し開始 [OpenAI]: deployment=%s, endpoint=%s, region=%s, "
+                            "api_version=%s, history_len=%d",
+                            deployment_name, model_info.get("endpoint"), model_info.get("region"),
+                            model_info.get("api_version"), len(st.session_state.conversation_history),
+                        )
                         client = AzureOpenAI(
                             api_key=api_key,
                             api_version=model_info.get("api_version", "2024-12-01-preview"),
@@ -1491,6 +1592,17 @@ else:
                         finish_reason = choice.finish_reason
                         response_model = response.model
                         response_id = response.id
+                        
+                        logger.info(
+                            "API応答完了 [OpenAI]: response_id=%s, model=%s, elapsed=%.3fs, "
+                            "prompt_tokens=%d, completion_tokens=%d, total_tokens=%d, finish_reason=%s",
+                            response_id, response_model, elapsed,
+                            prompt_tokens, completion_tokens, total_tokens_turn, finish_reason,
+                        )
+                        logger.debug(
+                            "API応答詳細 [OpenAI]: response_chars=%d, finish_reason=%s",
+                            len(ai_response), finish_reason,
+                        )
                     
                     cost_info = calculate_cost(prompt_tokens, completion_tokens, model_pricing)
                     
@@ -1538,6 +1650,11 @@ else:
                     
                 except Exception as e:
                     # エラー処理
+                    logger.exception(
+                        "API呼び出しエラー: session_id=%s, deployment=%s, model_type=%s, region=%s",
+                        st.session_state.current_session_id, deployment_name, model_type,
+                        model_info.get("region"),
+                    )
                     error_time = datetime.now()
                     st.session_state.conversation_history.pop()  # 失敗したユーザー入力を削除
                     
