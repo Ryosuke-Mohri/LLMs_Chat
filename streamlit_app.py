@@ -229,11 +229,17 @@ st.markdown("""
         white-space: pre-line !important;
         line-height: 1.3 !important;
         padding: 6px 10px !important;
+        text-indent: 0 !important;
         min-height: auto !important;
         border: 1px solid #d0d0d0 !important;
         border-radius: 8px !important;
         box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
         margin-bottom: 2px !important;
+    }
+    [data-testid="stSidebar"] button[kind="secondary"] p {
+        text-align: left !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
     
     /* ===== セッション行の間隔調整 ===== */
@@ -351,8 +357,88 @@ st.markdown("""
         padding: 2px 6px !important;
         border-radius: 4px !important;
     }
+    
+    /* ===== メインエリアのプライマリボタン（グリーン統一）===== */
+    .main button[kind="primary"],
+    .main [data-testid="stBaseButton-primary"],
+    .main [data-testid="stFormSubmitButton"] button[kind="primary"],
+    .main [data-testid="stFormSubmitButton"] button {
+        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%) !important;
+        color: #2e7d32 !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }
+    .main button[kind="primary"]:hover,
+    .main [data-testid="stBaseButton-primary"]:hover,
+    .main [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
+    .main [data-testid="stFormSubmitButton"] button:hover {
+        background: linear-gradient(135deg, #a5d6a7 0%, #81c784 100%) !important;
+        color: #1b5e20 !important;
+    }
+    
+    /* ===== LLM処理中オーバーレイ ===== */
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.6);
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: all;
+    }
+    .loading-overlay .spinner-container {
+        text-align: center;
+        color: #333;
+        font-size: 1.1rem;
+    }
+    .loading-overlay .spinner-container .spinner {
+        width: 48px;
+        height: 48px;
+        border: 5px solid #e0e0e0;
+        border-top: 5px solid #2e7d32;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 12px auto;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# LLM処理中オーバーレイ表示
+if st.session_state.get("is_processing", False):
+    st.markdown("""
+    <div class="loading-overlay">
+        <div class="spinner-container">
+            <div class="spinner"></div>
+            <div>AIが処理中です…しばらくお待ちください</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Popover 強制クローズ（フラグが立っている場合、JS で閉じる）
+if st.session_state.get("_close_popover", False):
+    st.session_state._close_popover = False
+    components.html("""
+    <script>
+    (function() {
+        var doc = window.parent.document;
+        // Strategy 1: Escape key
+        doc.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true
+        }));
+        // Strategy 2: Body click (closes popover by clicking outside)
+        doc.body.click();
+    })();
+    </script>
+    """, height=0)
 
 # ========================================
 # 定数・パス設定
@@ -730,6 +816,14 @@ if "generating_name" not in st.session_state:
     st.session_state.generating_name = False
 if "sidebar_rename_session_id" not in st.session_state:
     st.session_state.sidebar_rename_session_id = None  # 左ペインで名前変更フォーム表示中のセッションID
+if "_close_popover" not in st.session_state:
+    st.session_state._close_popover = False  # popover を強制的に閉じるためのフラグ
+if "is_processing" not in st.session_state:
+    st.session_state.is_processing = False  # LLM処理中フラグ（UIロック用）
+if "active_expander_open" not in st.session_state:
+    st.session_state.active_expander_open = True  # アクティブセッション Expander の開閉
+if "completed_expander_open" not in st.session_state:
+    st.session_state.completed_expander_open = False  # 終了済みセッション Expander の開閉
 
 # ========================================
 # モデル情報取得
@@ -762,12 +856,12 @@ st.sidebar.markdown("---")
 # セッション分類
 active_sessions = sorted(
     [(k, v) for k, v in sessions.items() if not v.get("deleted", False) and v.get("status", "active") == "active"],
-    key=lambda x: x[1].get("updated_at", ""),
+    key=lambda x: x[1].get("last_llm_response_at", x[1].get("created_at", "")),
     reverse=True
 )
 completed_sessions = sorted(
     [(k, v) for k, v in sessions.items() if not v.get("deleted", False) and v.get("status") == "completed"],
-    key=lambda x: x[1].get("updated_at", ""),
+    key=lambda x: x[1].get("last_llm_response_at", x[1].get("created_at", "")),
     reverse=True
 )
 deleted_sessions = sorted(
@@ -851,10 +945,12 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                                 })
                                 save_log_data(log_data)
                             st.session_state.sidebar_rename_session_id = None
+                            st.session_state._close_popover = True  # 次回描画で popover を閉じる
                             st.rerun()
                 with col_cancel:
                     if st.button("キャンセル", key=f"sidebar_rename_cancel_{session_id}", use_container_width=True):
                         st.session_state.sidebar_rename_session_id = None
+                        st.session_state._close_popover = True
                         st.rerun()
             else:
                 if st.button("📝 名前変更", key=f"menu_rename_{session_id}", use_container_width=True):
@@ -863,6 +959,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
             
             # セッション名生成
             if st.button("✨ 名前生成", key=f"menu_gen_{session_id}", use_container_width=True):
+                st.session_state.is_processing = True
                 with st.spinner("生成中..."):
                     generated = generate_session_name_with_llm(
                         session_id, model_info, session_info.get("conversation_history", [])
@@ -879,8 +976,11 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                             "generated_by_llm": True
                         })
                         save_log_data(log_data)
+                        st.session_state.is_processing = False
+                        st.session_state._close_popover = True
                         st.rerun()
                     else:
+                        st.session_state.is_processing = False
                         st.warning("セッション名を生成できませんでした")
             
             # セッション終了/再開
@@ -917,6 +1017,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                     }
                     logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs", total_turns, total_tokens, total_cost, session_duration)
                     save_log_data(log_data)
+                    st.session_state._close_popover = True
                     st.rerun()
             else:
                 if st.button("🔄 再開", key=f"menu_resume_{session_id}", use_container_width=True):
@@ -933,6 +1034,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                     st.session_state.selected_model = model_info_copy
                     st.session_state.is_new_session = False
                     st.session_state.view_mode = "chat"
+                    st.session_state._close_popover = True
                     st.rerun()
             
             # 削除（2段階確認）
@@ -953,18 +1055,21 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                             st.session_state.selected_model = None
                             st.session_state.is_new_session = True
                         st.session_state.delete_confirm_session = None
+                        st.session_state._close_popover = True
                         st.rerun()
                 with col_b:
                     if st.button("✗ キャンセル", key=f"cancel_del_{session_id}"):
                         st.session_state.delete_confirm_session = None
+                        st.session_state._close_popover = True
                         st.rerun()
             else:
                 if st.button("🗑️ 削除", key=f"menu_del_{session_id}", use_container_width=True):
                     st.session_state.delete_confirm_session = session_id
+                    st.session_state._close_popover = True
                     st.rerun()
 
 # --- アクティブセッション ---
-with st.sidebar.expander(f"▶️ アクティブ ({len(active_sessions)})", expanded=True):
+with st.sidebar.expander(f"▶️ アクティブ ({len(active_sessions)})", expanded=st.session_state.active_expander_open):
     if active_sessions:
         for session_id, session_info in active_sessions:
             render_session_item(session_id, session_info, container=st, session_type="active")
@@ -972,7 +1077,7 @@ with st.sidebar.expander(f"▶️ アクティブ ({len(active_sessions)})", exp
         st.caption("アクティブなセッションはありません")
 
 # --- 終了済みセッション ---
-with st.sidebar.expander(f"✅ 終了済み ({len(completed_sessions)})", expanded=False) as completed_expander:
+with st.sidebar.expander(f"✅ 終了済み ({len(completed_sessions)})", expanded=st.session_state.completed_expander_open):
     if completed_sessions:
         for session_id, session_info in completed_sessions:
             render_session_item(session_id, session_info, container=st, show_resume=True, session_type="completed")
@@ -1143,6 +1248,7 @@ else:
                         "session_name": auto_session_name,
                         "created_at": session_start.isoformat(),
                         "updated_at": session_start.isoformat(),
+                        "last_llm_response_at": session_start.isoformat(),
                         "status": "active",
                         "model": {
                             "deployment_name": selected_model_info["deployment_name"],
@@ -1219,10 +1325,12 @@ else:
                         })
                         save_log_data(log_data)
                         st.success("セッション名を変更しました")
+                        st.session_state._close_popover = True
                         st.rerun()
                 
                 # セッション名生成
                 if st.button("✨ LLMで名前を生成", key="gen_name_btn", use_container_width=True):
+                    st.session_state.is_processing = True
                     with st.spinner("生成中..."):
                         generated = generate_session_name_with_llm(
                             st.session_state.current_session_id,
@@ -1241,9 +1349,12 @@ else:
                                 "generated_by_llm": True
                             })
                             save_log_data(log_data)
+                            st.session_state.is_processing = False
                             st.success(f"生成完了: {generated}")
+                            st.session_state._close_popover = True
                             st.rerun()
                         else:
+                            st.session_state.is_processing = False
                             st.warning("セッション名を生成できませんでした")
                 
                 # セッション終了/再開
@@ -1281,6 +1392,7 @@ else:
                         logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs", total_turns, total_tokens, total_cost, session_duration)
                         save_log_data(log_data)
                         st.success("セッションを終了しました")
+                        st.session_state._close_popover = True
                         st.rerun()
                 else:
                     if st.button("🔄 セッションを再開", key="resume_session_btn", use_container_width=True):
@@ -1290,6 +1402,7 @@ else:
                         log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
                         save_log_data(log_data)
                         st.success("セッションを再開しました")
+                        st.session_state._close_popover = True
                         st.rerun()
                 
                 # 削除（2段階確認）
@@ -1309,14 +1422,17 @@ else:
                             st.session_state.selected_model = None
                             st.session_state.is_new_session = True
                             st.session_state.delete_confirm_session = None
+                            st.session_state._close_popover = True
                             st.rerun()
                     with col_b:
                         if st.button("✗ キャンセル", key="cancel_del_main"):
                             st.session_state.delete_confirm_session = None
+                            st.session_state._close_popover = True
                             st.rerun()
                 else:
                     if st.button("🗑️ このセッションを削除", key="delete_session_btn", use_container_width=True):
                         st.session_state.delete_confirm_session = st.session_state.current_session_id
+                        st.session_state._close_popover = True
                         st.rerun()
         
         # モデル情報表示（変更不可）※プロバイダーで表示
@@ -1517,7 +1633,8 @@ else:
                     "プロンプトを入力",
                     height=100,
                     placeholder="メッセージを入力してください...",
-                    key="user_input"
+                    key="user_input",
+                    label_visibility="collapsed"
                 )
                 
                 col1, col2 = st.columns([1, 5])
@@ -1526,6 +1643,7 @@ else:
         
         if not is_completed and submit_button and user_input.strip():
             # API呼び出し
+            st.session_state.is_processing = True
             logger.info(
                 "チャット送信: session_id=%s, input_chars=%d",
                 st.session_state.current_session_id, len(user_input.strip()),
@@ -1700,8 +1818,10 @@ else:
                     log_data["sessions"][st.session_state.current_session_id]["messages"].append(message_log)
                     log_data["sessions"][st.session_state.current_session_id]["conversation_history"] = st.session_state.conversation_history
                     log_data["sessions"][st.session_state.current_session_id]["updated_at"] = response_time_dt.isoformat()
+                    log_data["sessions"][st.session_state.current_session_id]["last_llm_response_at"] = response_time_dt.isoformat()
                     save_log_data(log_data)
                     
+                    st.session_state.is_processing = False
                     st.rerun()
                     
                 except Exception as e:
@@ -1727,6 +1847,7 @@ else:
                     log_data["sessions"][st.session_state.current_session_id]["updated_at"] = error_time.isoformat()
                     save_log_data(log_data)
                     
+                    st.session_state.is_processing = False
                     st.error(f"❌ エラーが発生しました: {type(e).__name__}: {e}")
         
         # ========================================
