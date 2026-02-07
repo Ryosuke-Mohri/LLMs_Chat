@@ -2,12 +2,13 @@
 lib/logger.py - アプリケーション・デバッグログ設定モジュール
 
 会話ログ (data/chat_log.json) とは別に、開発・運用向けの詳細ログを
-logs/ ディレクトリへ出力する。
+logs/ ディレクトリ および stdout へ出力する。
 
 特徴:
 - QueueHandler + QueueListener でファイル I/O をバックグラウンドスレッドに委譲
   → Streamlit の UI スレッドをブロックしない
 - RotatingFileHandler でファイルサイズを制限 (デフォルト 10 MB × 5 世代)
+- StreamHandler (stdout) でコンテナ環境の Log Analytics にも自動収集される
 - 環境変数 LOG_LEVEL でログレベルを制御 (デフォルト: DEBUG)
 
 使い方:
@@ -21,6 +22,7 @@ import logging
 import logging.handlers
 import os
 import queue
+import sys
 from pathlib import Path
 
 # ========================================
@@ -52,6 +54,9 @@ def _ensure_listener() -> None:
     if _listener is not None:
         return
 
+    # --- フォーマッタ ---
+    formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
+
     # --- ファイルハンドラ (RotatingFileHandler) ---
     file_handler = logging.handlers.RotatingFileHandler(
         filename=str(_LOG_FILE),
@@ -60,14 +65,19 @@ def _ensure_listener() -> None:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)  # ファイルには常に全レベル記録
-
-    formatter = logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT)
     file_handler.setFormatter(formatter)
+
+    # --- 標準出力ハンドラ (StreamHandler → stdout) ---
+    # コンテナ環境 (ACA 等) では stdout が自動的に Log Analytics に収集される
+    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler.setLevel(logging.DEBUG)  # stdout にも全レベル記録
+    stream_handler.setFormatter(formatter)
 
     # --- QueueListener (バックグラウンドスレッドで書き込み) ---
     _listener = logging.handlers.QueueListener(
         _log_queue,
-        file_handler,
+        file_handler,      # ローカル開発用（ファイル出力）
+        stream_handler,    # 本番用（stdout → ACA → Log Analytics）
         respect_handler_level=True,
     )
     _listener.start()
