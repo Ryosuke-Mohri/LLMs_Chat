@@ -639,10 +639,11 @@ def generate_session_name_with_llm(session_id, model_info, conversation_history)
             )
             response = client.messages.create(
                 model=model_info.get("deployment_name", ""),
-                max_tokens=50,
+                max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}]
             )
-            generated_name = response.content[0].text.strip() if response.content else None
+            raw = response.content[0].text if response.content else None
+            generated_name = raw.strip() if raw else None
             logger.debug(
                 "generate_session_name_with_llm: Anthropic レスポンス response_id=%s, input_tokens=%s, output_tokens=%s",
                 response.id, response.usage.input_tokens, response.usage.output_tokens,
@@ -661,10 +662,11 @@ def generate_session_name_with_llm(session_id, model_info, conversation_history)
             response = client.chat.completions.create(
                 model=model_info.get("deployment_name", ""),
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=50,
+                max_completion_tokens=4096,
                 temperature=0.7
             )
-            generated_name = response.choices[0].message.content.strip() if response.choices else None
+            raw = response.choices[0].message.content if response.choices else None
+            generated_name = raw.strip() if raw else None
             logger.debug(
                 "generate_session_name_with_llm: OpenAI レスポンス response_id=%s, prompt_tokens=%s, completion_tokens=%s",
                 response.id, response.usage.prompt_tokens, response.usage.completion_tokens,
@@ -853,6 +855,8 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                         })
                         save_log_data(log_data)
                         st.rerun()
+                    else:
+                        st.warning("セッション名を生成できませんでした")
             
             # セッション終了/再開
             if status == "active":
@@ -1205,6 +1209,8 @@ else:
                             save_log_data(log_data)
                             st.success(f"生成完了: {generated}")
                             st.rerun()
+                        else:
+                            st.warning("セッション名を生成できませんでした")
                 
                 # セッション終了/再開
                 if session_status == "active":
@@ -1529,7 +1535,7 @@ else:
                         # Anthropic API呼び出し
                         response = client.messages.create(
                             model=model_info.get("deployment_name", ""),
-                            max_tokens=4000,
+                            max_tokens=16384,
                             system=system_message,
                             messages=anthropic_messages
                         )
@@ -1576,7 +1582,7 @@ else:
                         response = client.chat.completions.create(
                             model=model_info.get("deployment_name", ""),
                             messages=st.session_state.conversation_history,
-                            max_completion_tokens=4000,
+                            max_completion_tokens=16384,
                             temperature=0.7
                         )
                         
