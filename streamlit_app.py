@@ -34,6 +34,7 @@ import anthropic
 load_dotenv()
 
 from lib.logger import get_logger
+from lib.themes import THEMES, generate_theme_css
 logger = get_logger(__name__)
 
 # ========================================
@@ -47,370 +48,19 @@ st.set_page_config(
 )
 
 # ========================================
-# カスタムCSS
+# テーマ初期化
 # ========================================
+if "app_theme" not in st.session_state:
+    st.session_state.app_theme = "light"
 
-# フォントサイズを今の80%に固定（zoom プロパティを使用）
+# ========================================
+# カスタムCSS（テーマ対応）
+# ========================================
 FONT_ZOOM = 0.8
-st.markdown(f"""
-<style>
-/* ===== フォントサイズ（80%固定）===== */
-.main .block-container {{
-    zoom: {FONT_ZOOM};
-}}
-@media (max-width: 992px) {{
-    .main .block-container {{
-        zoom: {FONT_ZOOM * 0.95};
-    }}
-}}
-@media (max-width: 768px) {{
-    .main .block-container {{
-        zoom: {FONT_ZOOM * 0.9};
-    }}
-}}
-</style>
-""", unsafe_allow_html=True)
+_current_theme = THEMES[st.session_state.app_theme]
+st.markdown(generate_theme_css(st.session_state.app_theme, FONT_ZOOM), unsafe_allow_html=True)
 
-st.markdown("""
-<style>
-    /* ===== 共通スタイル ===== */
-    * {
-        transition: all 0.2s ease;
-    }
-    
-    /* ===== セッションヘッダー ===== */
-    .session-header {
-        background: linear-gradient(135deg, #2e7d32 0%, #43a047 100%);
-        color: white;
-        padding: 15px 20px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    }
-    
-    /* ===== モデルバッジ（薄いグレー、枠線なし）===== */
-    .model-badge {
-        background: #f5f5f5;
-        color: #424242;
-        padding: 10px 14px;
-        border-radius: 8px;
-        font-size: 0.95em;
-        display: inline-block;
-        margin: 5px 0;
-    }
-    
-    /* ===== ユーザーメッセージ（より薄いブルー）===== */
-    .user-message {
-        background: linear-gradient(135deg, #f0f8ff 0%, #e8f4fc 100%);
-        padding: 15px;
-        border-radius: 12px;
-        margin: 10px 0;
-        border-left: 4px solid #2196f3;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    }
-    
-    /* ===== AIメッセージ ===== */
-    .ai-message {
-        background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
-        padding: 15px;
-        border-radius: 12px;
-        margin: 10px 0;
-        border-left: 4px solid #4caf50;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        position: relative;
-    }
-    
-    /* ===== コピーボタン ===== */
-    .copy-btn {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        background: #e0e0e0;
-        border: none;
-        padding: 6px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 0.8em;
-        color: #424242;
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        transition: all 0.2s ease;
-    }
-    .copy-btn:hover {
-        background: #bdbdbd;
-    }
-    .copy-btn.copied {
-        background: #c8e6c9;
-        color: #2e7d32;
-    }
-    
-    /* ===== メトリクスボックス ===== */
-    .metric-box {
-        background: linear-gradient(135deg, #fff8e1 0%, #fff3e0 100%);
-        padding: 10px;
-        border-radius: 10px;
-        text-align: center;
-        margin: 5px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-    
-    .stTextInput > div > div > input {
-        font-size: 16px;
-    }
-    
-    /* ===== サイドバー背景 ===== */
-    [data-testid="stSidebar"] {
-        background-color: #e8e8e8 !important;
-    }
-    [data-testid="stSidebar"] > div:first-child {
-        background-color: #e8e8e8 !important;
-    }
-    [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-        background-color: #e8e8e8 !important;
-    }
-    
-    /* ===== サイドバータイトル（シンプル青文字）===== */
-    .sidebar-title {
-        font-size: 1.5em;
-        font-weight: bold;
-        text-align: center;
-        color: #1565c0;
-        padding: 5px 0 10px 0;
-        margin-top: 0;
-    }
-    
-    /* ===== 新規セッションボタン（高さ2倍）===== */
-    [data-testid="stSidebar"] button[kind="primary"] {
-        min-height: 60px !important;
-    }
-    
-    /* ===== メインコンテンツ背景 ===== */
-    .main .block-container {
-        background-color: white;
-    }
-    
-    /* ===== サイドバーのpopoverボタン（デフォルト薄いグレー）===== */
-    [data-testid="stSidebar"] button[data-testid="stPopoverButton"] {
-        padding: 4px 8px !important;
-        min-width: 32px !important;
-        min-height: auto !important;
-        height: auto !important;
-        background-color: #f5f5f5 !important;
-        border: 1px solid #d0d0d0 !important;
-        border-radius: 6px !important;
-        align-self: stretch !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-    }
-    [data-testid="stSidebar"] button[data-testid="stPopoverButton"]:hover {
-        background-color: #e0e0e0 !important;
-    }
-    /* アクティブ行のpopoverボタン＝左側セッションと同じ色（薄いブルー）*/
-    .active-session-marker + div [data-testid="column"]:last-child button[data-testid="stPopoverButton"] {
-        background-color: #e3f2fd !important;
-    }
-    .active-session-marker + div [data-testid="column"]:last-child button[data-testid="stPopoverButton"]:hover {
-        background-color: #bbdefb !important;
-    }
-    /* 終了済み行のpopoverボタン＝左側セッションと同じ色（薄いグリーン）*/
-    .completed-session-marker + div [data-testid="column"]:last-child button[data-testid="stPopoverButton"] {
-        background-color: #e8f5e9 !important;
-    }
-    .completed-session-marker + div [data-testid="column"]:last-child button[data-testid="stPopoverButton"]:hover {
-        background-color: #c8e6c9 !important;
-    }
-    
-    /* ===== セッションボタンの基本スタイル ===== */
-    [data-testid="stSidebar"] button[kind="secondary"] {
-        text-align: left !important;
-        justify-content: flex-start !important;
-        white-space: pre-line !important;
-        line-height: 1.3 !important;
-        padding: 6px 10px !important;
-        text-indent: 0 !important;
-        min-height: auto !important;
-        border: 1px solid #d0d0d0 !important;
-        border-radius: 8px !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-        margin-bottom: 2px !important;
-    }
-    [data-testid="stSidebar"] button[kind="secondary"] p {
-        text-align: left !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    
-    /* ===== セッション行の間隔調整 ===== */
-    [data-testid="stSidebar"] [data-testid="column"] {
-        padding: 0 2px !important;
-    }
-    [data-testid="stSidebar"] .stHorizontalBlock {
-        gap: 4px !important;
-        margin-bottom: 4px !important;
-        align-items: stretch !important;
-    }
-    
-    /* ===== 新規セッションボタン ===== */
-    [data-testid="stSidebar"] button[kind="primary"] {
-        background: linear-gradient(135deg, #1565c0 0%, #1976d2 100%) !important;
-        border-radius: 10px !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    }
-    [data-testid="stSidebar"] button[kind="primary"]:hover {
-        background: linear-gradient(135deg, #fff8e1 0%, #fffde7 100%) !important;
-        color: #5d4037 !important;
-    }
-    
-    /* ===== アクティブセッション用スタイル（薄いブルー）===== */
-    .active-session-marker + div button[kind="secondary"] {
-        background-color: #e3f2fd !important;
-        display: -webkit-box !important;
-        -webkit-line-clamp: 2 !important;
-        -webkit-box-orient: vertical !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        white-space: normal !important;
-    }
-    .active-session-marker + div button[kind="secondary"]:hover {
-        background-color: #bbdefb !important;
-    }
-    
-    /* ===== 終了済みセッション用スタイル（薄いグリーン）===== */
-    .completed-session-marker + div button[kind="secondary"] {
-        background-color: #e8f5e9 !important;
-        display: -webkit-box !important;
-        -webkit-line-clamp: 2 !important;
-        -webkit-box-orient: vertical !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        white-space: normal !important;
-    }
-    .completed-session-marker + div button[kind="secondary"]:hover {
-        background-color: #c8e6c9 !important;
-    }
-    
-    /* ===== ゴミ箱ボタン（濃いグレー＋白文字）===== */
-    .trash-button-marker + div button {
-        background-color: #616161 !important;
-        color: white !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    }
-    .trash-button-marker + div button:hover {
-        background-color: #424242 !important;
-    }
-    .trash-button-marker + div button p {
-        color: white !important;
-    }
-    
-    /* ===== Expanderのスタイル ===== */
-    [data-testid="stSidebar"] .stExpander {
-        background-color: transparent !important;
-        border: none !important;
-    }
-    [data-testid="stSidebar"] details summary {
-        background-color: white !important;
-        border-radius: 8px;
-        padding: 10px 12px !important;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-        margin-bottom: 4px;
-    }
-    [data-testid="stSidebar"] details[open] > div {
-        background-color: white !important;
-        border-radius: 8px;
-        padding: 8px !important;
-        margin-top: 4px;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-    }
-    
-    /* ===== メインエリアのpopover（セッション操作）===== */
-    .main button[data-testid="stPopoverButton"] {
-        background: linear-gradient(135deg, #f5f5f5 0%, #eeeeee 100%) !important;
-        border-radius: 8px !important;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    }
-    .main button[data-testid="stPopoverButton"]:hover {
-        background: linear-gradient(135deg, #e0e0e0 0%, #d5d5d5 100%) !important;
-    }
-    
-    /* ===== メトリクス数値のフォントサイズ（ラベルと同じにして省略防止）===== */
-    .main [data-testid="stMetricValue"] {
-        font-size: 1rem !important;
-    }
-    
-    /* ===== コード表示領域（ダークモード）===== */
-    .main pre,
-    .main code,
-    .main [data-testid="stMarkdown"] pre,
-    .main [data-testid="stMarkdown"] code {
-        background-color: #1e1e1e !important;
-        color: #d4d4d4 !important;
-    }
-    .main pre {
-        padding: 12px 16px !important;
-        border-radius: 8px !important;
-        overflow-x: auto !important;
-    }
-    .main code {
-        padding: 2px 6px !important;
-        border-radius: 4px !important;
-    }
-    
-    /* ===== メインエリアのプライマリボタン（グリーン統一）===== */
-    .main button[kind="primary"],
-    .main [data-testid="stBaseButton-primary"],
-    .main [data-testid="stFormSubmitButton"] button[kind="primary"],
-    .main [data-testid="stFormSubmitButton"] button {
-        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%) !important;
-        color: #2e7d32 !important;
-        border: none !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-    }
-    .main button[kind="primary"]:hover,
-    .main [data-testid="stBaseButton-primary"]:hover,
-    .main [data-testid="stFormSubmitButton"] button[kind="primary"]:hover,
-    .main [data-testid="stFormSubmitButton"] button:hover {
-        background: linear-gradient(135deg, #a5d6a7 0%, #81c784 100%) !important;
-        color: #1b5e20 !important;
-    }
-    
-    /* ===== LLM処理中オーバーレイ ===== */
-    .loading-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255, 255, 255, 0.6);
-        z-index: 9999;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        pointer-events: all;
-    }
-    .loading-overlay .spinner-container {
-        text-align: center;
-        color: #333;
-        font-size: 1.1rem;
-    }
-    .loading-overlay .spinner-container .spinner {
-        width: 48px;
-        height: 48px;
-        border: 5px solid #e0e0e0;
-        border-top: 5px solid #2e7d32;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 12px auto;
-    }
-    @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-</style>
-""", unsafe_allow_html=True)
+# (旧 CSS は lib/themes.py の generate_theme_css() に統合済み)
 
 # LLM処理中オーバーレイ表示
 if st.session_state.get("is_processing", False):
@@ -1194,6 +844,16 @@ else:
         current_session = log_data.get("sessions", {}).get(st.session_state.current_session_id)
 
     # ========================================
+    # テーマ切替トグル（右ペイン上部）
+    # ========================================
+    _theme_cols = st.columns([8, 1])
+    with _theme_cols[1]:
+        _is_dark = st.toggle("🌙", value=(st.session_state.app_theme == "dark"), key="theme_toggle")
+        if _is_dark != (st.session_state.app_theme == "dark"):
+            st.session_state.app_theme = "dark" if _is_dark else "light"
+            st.rerun()
+
+    # ========================================
     # ヘッダー部分
     # ========================================
     if st.session_state.is_new_session or current_session is None:
@@ -1504,9 +1164,9 @@ else:
         with col_hist:
             st.subheader("📝 会話履歴")
         with col_bottom:
-            st.markdown("""
+            st.markdown(f"""
             <a href="#page-bottom" style="text-decoration:none;">
-                <div style="text-align:center; padding:8px; background:#e3f2fd; border-radius:8px; cursor:pointer;">
+                <div style="text-align:center; padding:8px; background:{_current_theme['nav_bottom_bg']}; border-radius:8px; cursor:pointer; color:{_current_theme['nav_text']};">
                     ⬇️ 最下部へ
                 </div>
             </a>
@@ -1527,7 +1187,7 @@ else:
                 if msg_log:
                     request_ts = msg_log.get("request", {}).get("timestamp", "")
                     if request_ts:
-                        timestamp_str = f'<span style="color:#888; font-size:0.8em; float:right;">📤 {format_timestamp(request_ts)}</span>'
+                        timestamp_str = f'<span style="color:{_current_theme["timestamp_color"]}; font-size:0.8em; float:right;">📤 {format_timestamp(request_ts)}</span>'
                 
                 st.markdown(f"""
                 <div class="user-message">
@@ -1557,7 +1217,7 @@ else:
                 # AI回答表示（コピーボタンなしのマークダウン部分）
                 st.markdown(f"""
                 <div class="ai-message">
-                    <strong>🤖 AI</strong> <span style="color:#666; font-size:0.9em;">{metrics_str}</span>
+                    <strong>🤖 AI</strong> <span style="color:{_current_theme['ai_metrics_color']}; font-size:0.9em;">{metrics_str}</span>
                     <div style="margin-top:10px;">{msg['content']}</div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -1566,13 +1226,13 @@ else:
                 copy_html = f"""
                 <div style="text-align: right; margin-top: -10px; margin-bottom: 10px;">
                     <button id="copy_btn_{msg_id}" onclick="copyText_{msg_id}()" style="
-                        background: #e0e0e0;
+                        background: {_current_theme['copy_btn_bg']};
                         border: none;
                         padding: 6px 12px;
                         border-radius: 6px;
                         cursor: pointer;
                         font-size: 0.85em;
-                        color: #424242;
+                        color: {_current_theme['copy_btn_text']};
                     ">📋 Copy</button>
                 </div>
                 <script>
@@ -1581,12 +1241,12 @@ else:
                     navigator.clipboard.writeText(text).then(function() {{
                         var btn = document.getElementById('copy_btn_{msg_id}');
                         btn.innerHTML = '✓ Copied!';
-                        btn.style.background = '#c8e6c9';
-                        btn.style.color = '#2e7d32';
+                        btn.style.background = '{_current_theme['copy_btn_copied_bg']}';
+                        btn.style.color = '{_current_theme['copy_btn_copied_text']}';
                         setTimeout(function() {{
                             btn.innerHTML = '📋 Copy';
-                            btn.style.background = '#e0e0e0';
-                            btn.style.color = '#424242';
+                            btn.style.background = '{_current_theme['copy_btn_bg']}';
+                            btn.style.color = '{_current_theme['copy_btn_text']}';
                         }}, 2000);
                     }}).catch(function(err) {{
                         alert('コピーに失敗しました');
@@ -1597,10 +1257,10 @@ else:
                 components.html(copy_html, height=40)
         
         # 最上部へのナビゲーション
-        st.markdown("""
+        st.markdown(f"""
         <div style="display:flex; justify-content:center; margin:10px 0;">
             <a href="#page-top" style="text-decoration:none;">
-                <div style="text-align:center; padding:8px 16px; background:#e8f5e9; border-radius:8px; cursor:pointer;">
+                <div style="text-align:center; padding:8px 16px; background:{_current_theme['nav_top_bg']}; border-radius:8px; cursor:pointer; color:{_current_theme['nav_text']};">
                     ⬆️ 最上部へ
                 </div>
             </a>
