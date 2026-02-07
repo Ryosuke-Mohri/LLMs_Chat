@@ -368,13 +368,11 @@ REGIONS = {
         "api_key": os.getenv("AZURE_OPENAI_JAPAN_EAST_API_KEY", ""),
         "endpoint": os.getenv("AZURE_OPENAI_JAPAN_EAST_ENDPOINT", ""),
         "anthropic_endpoint": "",
-        "deployments": [d.strip() for d in os.getenv("DEPLOYMENTS_JAPAN_EAST", "").split(",") if d.strip()],
     },
     "East US2": {
         "api_key": os.getenv("AZURE_OPENAI_EAST_US2_API_KEY", ""),
         "endpoint": os.getenv("AZURE_OPENAI_EAST_US2_ENDPOINT", ""),
         "anthropic_endpoint": os.getenv("AZURE_OPENAI_EAST_US2_ANTHROPIC_ENDPOINT", ""),
-        "deployments": [d.strip() for d in os.getenv("DEPLOYMENTS_EAST_US2", "").split(",") if d.strip()],
     }
 }
 
@@ -390,8 +388,8 @@ logger.info("LOG_FILE_PATH=%s", LOG_FILE_PATH)
 logger.info("API_VERSION=%s", API_VERSION)
 for _rname, _rinfo in REGIONS.items():
     logger.info(
-        "REGION[%s]: endpoint=%s, deployments=%s",
-        _rname, _rinfo.get("endpoint", ""), _rinfo.get("deployments", []),
+        "REGION[%s]: endpoint=%s",
+        _rname, _rinfo.get("endpoint", ""),
     )
 logger.debug("REGION_DISPLAY_MAP=%s", REGION_DISPLAY_MAP)
 
@@ -402,35 +400,49 @@ def format_region_display(region):
     return REGION_DISPLAY_MAP.get(region, region)
 
 # ========================================
-# コンストラクターマスタ（デプロイ名 → 開発元）
+# モデルメタデータ（config/deployment_models.json）
 # ========================================
-_constructor_master_cache = None
+MODEL_METADATA_PATH = BASE_DIR / "config" / "deployment_models.json"
+_model_metadata_cache = None
 
-def load_constructor_master():
-    """環境変数 CONSTRUCTOR_MASTER から deployment_name → constructor の辞書を返す"""
-    global _constructor_master_cache
-    if _constructor_master_cache is not None:
-        return _constructor_master_cache
-    raw = os.getenv("CONSTRUCTOR_MASTER", "")
-    result = {}
-    for pair in raw.split(","):
-        pair = pair.strip()
-        if ":" in pair:
-            name, constructor = pair.split(":", 1)
-            result[name.strip()] = constructor.strip()
-    _constructor_master_cache = result
-    logger.debug("load_constructor_master: %d 件ロード", len(result))
-    return result
+def load_model_metadata():
+    """config/deployment_models.json からモデルメタデータのリストを返す"""
+    global _model_metadata_cache
+    if _model_metadata_cache is not None:
+        return _model_metadata_cache
+    try:
+        with open(MODEL_METADATA_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        _model_metadata_cache = data
+        logger.debug("load_model_metadata: %d 件ロード", len(data))
+        return data
+    except Exception:
+        logger.exception("load_model_metadata: ファイル読み込み失敗 (%s)", MODEL_METADATA_PATH)
+        _model_metadata_cache = []
+        return []
 
-def get_constructor_for_deployment(deployment_name):
-    """デプロイ名からコンストラクター名を取得。マスタに無い場合は 'その他'。"""
+def get_provider_for_deployment(deployment_name):
+    """デプロイ名からプロバイダー名を取得。マスタに無い場合は 'その他'。"""
     if not deployment_name:
         return "その他"
-    master = load_constructor_master()
-    return master.get(deployment_name, "その他")
+    metadata = load_model_metadata()
+    for m in metadata:
+        if m.get("deployment_name") == deployment_name:
+            return m.get("provider", "その他")
+    return "その他"
 
-# コンストラクター別アイコン（OpenAI / Anthropic / 中国系 / その他 で区別）
-CONSTRUCTOR_ICONS = {
+def get_display_name_for_deployment(deployment_name):
+    """デプロイ名から表示名を取得。マスタに無い場合はデプロイ名をそのまま返す。"""
+    if not deployment_name:
+        return "不明"
+    metadata = load_model_metadata()
+    for m in metadata:
+        if m.get("deployment_name") == deployment_name:
+            return m.get("display_name", deployment_name)
+    return deployment_name
+
+# プロバイダー別アイコン（OpenAI / Anthropic / 中国系 / その他 で区別）
+PROVIDER_ICONS = {
     "OpenAI": "🟢",
     "Anthropic": "🟣",
     "DeepSeek": "🟠",
@@ -439,11 +451,11 @@ CONSTRUCTOR_ICONS = {
     "Meta": "🔵",
 }
 
-def get_constructor_icon(constructor):
-    """コンストラクター名から表示用アイコンを返す。"""
-    if not constructor:
+def get_provider_icon(provider):
+    """プロバイダー名から表示用アイコンを返す。"""
+    if not provider:
         return "🔵"
-    return CONSTRUCTOR_ICONS.get(constructor, "🔵")
+    return PROVIDER_ICONS.get(provider, "🔵")
 
 # ========================================
 # 料金設定（USD / 1000トークン）
@@ -547,44 +559,56 @@ def get_model_type_display(model_type):
         return {"icon": "🟢", "name": "OpenAI (GPT)"}
 
 def get_all_models():
-    """全モデル情報を取得"""
-    constructor_master = load_constructor_master()
+    """全モデル情報を取得（config/deployment_models.json から読み込み、sort_order 昇順でソート）"""
+    metadata_list = load_model_metadata()
     all_models = []
-    for region_name, region_info in REGIONS.items():
+    for meta in metadata_list:
+        dep = meta.get("deployment_name", "")
+        region_name = meta.get("region", "")
+        region_info = REGIONS.get(region_name)
+        if not region_info:
+            logger.warning("get_all_models: リージョン '%s' が REGIONS に存在しません (deployment=%s)", region_name, dep)
+            continue
         try:
-            deployments = region_info["deployments"]
-            for dep in deployments:
-                model_type = get_model_type(dep)
-                constructor = constructor_master.get(dep, "その他")
-                constructor_icon = get_constructor_icon(constructor)
-                type_display = get_model_type_display(model_type)
-                
-                # Anthropic モデルの場合は専用エンドポイントを使用
-                if model_type == "anthropic":
-                    endpoint = region_info.get("anthropic_endpoint") or region_info.get("endpoint", "")
-                else:
-                    endpoint = region_info.get("endpoint", "")
-                
-                # 後方互換性のため config dict を構築
-                config = {
-                    "Azure API Key": region_info["api_key"],
-                    "ENDPOINT": region_info["endpoint"],
-                    "ENDPOINT (Anthropic Model)": region_info.get("anthropic_endpoint", ""),
-                    "Azure API Version": API_VERSION,
-                }
-                
-                all_models.append({
-                    "region": region_name,
-                    "deployment_name": dep,
-                    "model_type": model_type,
-                    "constructor": constructor,
-                    "constructor_icon": constructor_icon,
-                    "endpoint": endpoint,
-                    "config": config,
-                    "display_name": f"{constructor_icon} {dep} ({region_name}) {constructor}"
-                })
+            model_type = get_model_type(dep)
+            provider = meta.get("provider", "その他")
+            provider_icon = get_provider_icon(provider)
+            display_name = meta.get("display_name", dep)
+
+            # Anthropic モデルの場合は専用エンドポイントを使用
+            if model_type == "anthropic":
+                endpoint = region_info.get("anthropic_endpoint") or region_info.get("endpoint", "")
+            else:
+                endpoint = region_info.get("endpoint", "")
+
+            # 後方互換性のため config dict を構築
+            config = {
+                "Azure API Key": region_info["api_key"],
+                "ENDPOINT": region_info["endpoint"],
+                "ENDPOINT (Anthropic Model)": region_info.get("anthropic_endpoint", ""),
+                "Azure API Version": API_VERSION,
+            }
+
+            all_models.append({
+                "region": region_name,
+                "deployment_name": dep,
+                "model_type": model_type,
+                "provider": provider,
+                "provider_icon": provider_icon,
+                "display_name": display_name,
+                "release_date": meta.get("release_date", ""),
+                "sort_order": meta.get("sort_order", 999),
+                "capability_tag": meta.get("capability_tag", []),
+                "recommended_usage": meta.get("recommended_usage", ""),
+                "endpoint": endpoint,
+                "config": config,
+                "dropdown_label": f"{provider_icon} {display_name} ({region_name})"
+            })
         except Exception:
-            logger.exception("get_all_models: リージョン '%s' の処理中にエラー", region_name)
+            logger.exception("get_all_models: モデル '%s' の処理中にエラー", dep)
+
+    # sort_order 昇順でソート
+    all_models.sort(key=lambda m: m.get("sort_order", 999))
     logger.info("get_all_models: %d モデルを検出", len(all_models))
     return all_models
 
@@ -769,12 +793,13 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
     session_name = session_info.get("session_name", session_id)
     model_info = session_info.get("model", {})
     deployment_name = model_info.get("deployment_name", "不明")
+    model_display_name = model_info.get("display_name") or get_display_name_for_deployment(deployment_name)
     region_raw = model_info.get("region", "")
     region_display = format_region_display(region_raw)
     model_type = model_info.get("model_type", "openai")
     status = session_info.get("status", "active")
-    constructor = model_info.get("constructor") or get_constructor_for_deployment(deployment_name)
-    type_icon = model_info.get("constructor_icon") or get_constructor_icon(constructor)
+    provider = model_info.get("provider") or model_info.get("constructor") or get_provider_for_deployment(deployment_name)
+    type_icon = model_info.get("provider_icon") or model_info.get("constructor_icon") or get_provider_icon(provider)
     
     # CSSマーカーを挿入（セッションタイプ別のスタイル適用用）
     marker_class = "active-session-marker" if session_type == "active" else "completed-session-marker"
@@ -786,7 +811,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
         # セッション名を表示（長すぎる場合は省略）
         display_name = session_name[:25] + "..." if len(session_name) > 25 else session_name
         # モデル情報を全体表示（省略なし）
-        model_display = f"{type_icon} {deployment_name} | 📍{region_display}"
+        model_display = f"{type_icon} {model_display_name} | 📍{region_display}"
         
         # セッションカード風のボタン（2行表示）
         button_label = f"{display_name}\n{model_display}"
@@ -1004,8 +1029,8 @@ if st.session_state.view_mode == "trash":
         for session_id, session_info in deleted_sessions:
             session_name = session_info.get("session_name", session_id)
             model_info = session_info.get("model", {})
-            constructor = model_info.get("constructor") or get_constructor_for_deployment(model_info.get("deployment_name", ""))
-            type_icon = model_info.get("constructor_icon") or get_constructor_icon(constructor)
+            provider = model_info.get("provider") or model_info.get("constructor") or get_provider_for_deployment(model_info.get("deployment_name", ""))
+            type_icon = model_info.get("provider_icon") or model_info.get("constructor_icon") or get_provider_icon(provider)
             
             messages = session_info.get("messages", [])
             total_turns = len(messages)
@@ -1018,7 +1043,8 @@ if st.session_state.view_mode == "trash":
                     st.checkbox("", key=f"trash_cb_{session_id}", label_visibility="collapsed")
                 with col1:
                     st.markdown(f"**{session_name}**")
-                    st.caption(f"{type_icon} {model_info.get('deployment_name', '不明')} | 📍 {format_region_display(model_info.get('region', ''))}")
+                    trash_display_name = model_info.get("display_name") or get_display_name_for_deployment(model_info.get("deployment_name", ""))
+                    st.caption(f"{type_icon} {trash_display_name} | 📍 {format_region_display(model_info.get('region', ''))}")
                 with col2:
                     st.caption(f"🕐 作成: {format_timestamp(session_info.get('created_at', ''))}")
                     st.caption(f"🗑️ 削除: {format_timestamp(session_info.get('deleted_at', ''))}")
@@ -1073,8 +1099,8 @@ else:
         st.subheader("🤖 使用するモデルを選択")
         
         if all_models:
-            model_options = [m["display_name"] for m in all_models]
-            selected_display_name = st.selectbox(
+            model_options = [m["dropdown_label"] for m in all_models]
+            selected_dropdown_label = st.selectbox(
                 "モデル選択",
                 model_options,
                 index=0
@@ -1082,17 +1108,20 @@ else:
             
             # 選択されたモデル情報を取得
             selected_model_info = next(
-                (m for m in all_models if m["display_name"] == selected_display_name),
+                (m for m in all_models if m["dropdown_label"] == selected_dropdown_label),
                 None
             )
             
             if selected_model_info:
+                cap_tags = ", ".join(selected_model_info.get("capability_tag", []))
                 st.info(f"""
                 **選択されたモデル:**
-                - デプロイメント: `{selected_model_info['deployment_name']}`
+                - モデル名: `{selected_model_info['display_name']}`
+                - プロバイダー: {selected_model_info.get('provider_icon', '🔵')} `{selected_model_info.get('provider', 'その他')}`
                 - リージョン: `{format_region_display(selected_model_info.get('region', ''))}`
-                - コンストラクター: {selected_model_info.get('constructor_icon', '🔵')} `{selected_model_info.get('constructor', 'その他')}`
-                - エンドポイント: `{selected_model_info['endpoint']}`
+                - リリース: `{selected_model_info.get('release_date', '')}`
+                - 用途タグ: `{cap_tags}`
+                - 利用推奨: `{selected_model_info.get('recommended_usage', '')}`
                 """)
                 
                 # セッション開始ボタン
@@ -1117,10 +1146,15 @@ else:
                         "status": "active",
                         "model": {
                             "deployment_name": selected_model_info["deployment_name"],
+                            "display_name": selected_model_info.get("display_name", selected_model_info["deployment_name"]),
                             "region": selected_model_info["region"],
                             "model_type": selected_model_info["model_type"],
-                            "constructor": selected_model_info.get("constructor", get_constructor_for_deployment(selected_model_info["deployment_name"])),
-                            "constructor_icon": selected_model_info.get("constructor_icon", get_constructor_icon(selected_model_info.get("constructor", "その他"))),
+                            "provider": selected_model_info.get("provider", get_provider_for_deployment(selected_model_info["deployment_name"])),
+                            "provider_icon": selected_model_info.get("provider_icon", get_provider_icon(selected_model_info.get("provider", "その他"))),
+                            "release_date": selected_model_info.get("release_date", ""),
+                            "sort_order": selected_model_info.get("sort_order", 999),
+                            "capability_tag": selected_model_info.get("capability_tag", []),
+                            "recommended_usage": selected_model_info.get("recommended_usage", ""),
                             "endpoint": selected_model_info["endpoint"],
                             "api_version": config.get("Azure API Version", "2024-12-01-preview"),
                             "api_key": config.get("Azure API Key", "")
@@ -1285,14 +1319,30 @@ else:
                         st.session_state.delete_confirm_session = st.session_state.current_session_id
                         st.rerun()
         
-        # モデル情報表示（変更不可）※コンストラクターで表示
-        constructor = model_info.get("constructor") or get_constructor_for_deployment(model_info.get("deployment_name", ""))
-        constructor_icon = model_info.get("constructor_icon") or get_constructor_icon(constructor)
+        # モデル情報表示（変更不可）※プロバイダーで表示
+        provider = model_info.get("provider") or model_info.get("constructor") or get_provider_for_deployment(model_info.get("deployment_name", ""))
+        provider_icon = model_info.get("provider_icon") or model_info.get("constructor_icon") or get_provider_icon(provider)
+        model_display_name = model_info.get("display_name") or get_display_name_for_deployment(model_info.get("deployment_name", ""))
         st.markdown(f"""
         <div class="model-badge">
-            {constructor_icon} {model_info.get('deployment_name', '不明')} | 📍 {format_region_display(model_info.get('region', ''))} | {constructor}
+            {provider_icon} {model_display_name} | 📍 {format_region_display(model_info.get('region', ''))} | {provider}
         </div>
         """, unsafe_allow_html=True)
+        # 追加メタデータ表示
+        header_cap_tags = model_info.get("capability_tag", [])
+        if isinstance(header_cap_tags, list):
+            header_cap_tags = ", ".join(header_cap_tags)
+        release_date = model_info.get("release_date", "")
+        recommended_usage = model_info.get("recommended_usage", "")
+        meta_parts = []
+        if release_date:
+            meta_parts.append(f"リリース: {release_date}")
+        if header_cap_tags:
+            meta_parts.append(f"用途: {header_cap_tags}")
+        if recommended_usage:
+            meta_parts.append(f"推奨: {recommended_usage}")
+        if meta_parts:
+            st.caption(" | ".join(meta_parts))
         
         st.caption("※ セッション途中でモデルを変更することはできません")
         
