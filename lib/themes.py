@@ -54,14 +54,15 @@ THEMES = {
         "sidebar_title_color": "#1565c0",
         "popover_bg": "#f5f5f5",
         "popover_border": "#d0d0d0",
-        "popover_hover_bg": "#e0e0e0",
+        "popover_hover_bg": "#d0d0d0",
 
         # --- セッションボタン ---
         "btn_secondary_border": "#d0d0d0",
+        "btn_secondary_bg": "#ffffff",
         "active_session_bg": "#e3f2fd",
-        "active_session_hover": "#bbdefb",
+        "active_session_hover": "#90caf9",
         "completed_session_bg": "#e8f5e9",
-        "completed_session_hover": "#c8e6c9",
+        "completed_session_hover": "#a5d6a7",
 
         # --- 新規セッションボタン ---
         "new_session_btn_start": "#1565c0",
@@ -72,8 +73,16 @@ THEMES = {
 
         # --- ゴミ箱ボタン ---
         "trash_btn_bg": "#616161",
-        "trash_btn_hover_bg": "#424242",
+        "trash_btn_hover_bg": "#333333",
         "trash_btn_text": "#ffffff",
+
+        # --- 危険ボタン（削除系）---
+        "danger_btn_start": "#ef5350",
+        "danger_btn_end": "#e53935",
+        "danger_btn_text": "#ffffff",
+        "danger_btn_hover_start": "#c62828",
+        "danger_btn_hover_end": "#b71c1c",
+        "danger_btn_hover_text": "#ffffff",
 
         # --- Expander ---
         "expander_header_bg": "#ffffff",
@@ -82,8 +91,8 @@ THEMES = {
         # --- メインエリア popover ---
         "main_popover_bg_start": "#f5f5f5",
         "main_popover_bg_end": "#eeeeee",
-        "main_popover_hover_start": "#e0e0e0",
-        "main_popover_hover_end": "#d5d5d5",
+        "main_popover_hover_start": "#d0d0d0",
+        "main_popover_hover_end": "#c0c0c0",
 
         # --- コードブロック ---
         "code_bg": "#1e1e1e",
@@ -93,8 +102,8 @@ THEMES = {
         "main_primary_btn_start": "#c8e6c9",
         "main_primary_btn_end": "#a5d6a7",
         "main_primary_btn_text": "#2e7d32",
-        "main_primary_btn_hover_start": "#a5d6a7",
-        "main_primary_btn_hover_end": "#81c784",
+        "main_primary_btn_hover_start": "#81c784",
+        "main_primary_btn_hover_end": "#66bb6a",
         "main_primary_btn_hover_text": "#1b5e20",
 
         # --- オーバーレイ ---
@@ -148,20 +157,20 @@ THEMES = {
         "app_bg": "#0a0a14",
 
         # --- テキスト ---
-        "text_primary": "#e0e0e0",
-        "text_secondary": "#b0b0b0",
-        "text_muted": "#909090",
-        "timestamp_color": "#999999",
-        "ai_metrics_color": "#aaaaaa",
+        "text_primary": "#f8f8f8",
+        "text_secondary": "#e0e0e0",
+        "text_muted": "#c0c0c0",
+        "timestamp_color": "#d0d0d0",
+        "ai_metrics_color": "#d8d8d8",
 
         # --- セッションヘッダー ---
         "session_header_start": "#1b5e20",
         "session_header_end": "#2e7d32",
-        "session_header_text": "#e0e0e0",
+        "session_header_text": "#ffffff",
 
         # --- モデルバッジ ---
         "model_badge_bg": "#252540",
-        "model_badge_text": "#c8c8d0",
+        "model_badge_text": "#f0f0f8",
 
         # --- ユーザーメッセージ ---
         "user_msg_bg_start": "#141e30",
@@ -175,8 +184,8 @@ THEMES = {
 
         # --- コピーボタン ---
         "copy_btn_bg": "#333350",
-        "copy_btn_text": "#c0c0c8",
-        "copy_btn_hover_bg": "#44446a",
+        "copy_btn_text": "#e0e0e8",
+        "copy_btn_hover_bg": "#555580",
         "copy_btn_copied_bg": "#1b5e20",
         "copy_btn_copied_text": "#a5d6a7",
 
@@ -188,48 +197,57 @@ THEMES = {
         "sidebar_title_color": "#64b5f6",
         "popover_bg": "#252540",
         "popover_border": "#3a3a58",
-        "popover_hover_bg": "#333350",
+        "popover_hover_bg": "#40406a",
 
         # --- セッションボタン ---
         "btn_secondary_border": "#3a3a58",
+        "btn_secondary_bg": "#1e1e30",
         "active_session_bg": "#141e30",
-        "active_session_hover": "#1e3050",
+        "active_session_hover": "#253d6a",
         "completed_session_bg": "#141e14",
-        "completed_session_hover": "#1e3020",
+        "completed_session_hover": "#254035",
 
         # --- 新規セッションボタン ---
         "new_session_btn_start": "#1565c0",
         "new_session_btn_end": "#1976d2",
-        "new_session_btn_hover_start": "#1e1c14",
-        "new_session_btn_hover_end": "#24221a",
-        "new_session_btn_hover_text": "#e0d0b0",
+        "new_session_btn_hover_start": "#1e88e5",
+        "new_session_btn_hover_end": "#42a5f5",
+        "new_session_btn_hover_text": "#ffffff",
 
         # --- ゴミ箱ボタン ---
         "trash_btn_bg": "#3a3a50",
-        "trash_btn_hover_bg": "#2a2a40",
-        "trash_btn_text": "#d0d0d8",
+        "trash_btn_hover_bg": "#555578",
+        "trash_btn_text": "#e8e8f0",
+
+        # --- 危険ボタン（削除系）---
+        "danger_btn_start": "#7f1d1d",
+        "danger_btn_end": "#991b1b",
+        "danger_btn_text": "#fca5a5",
+        "danger_btn_hover_start": "#c62828",
+        "danger_btn_hover_end": "#ef5350",
+        "danger_btn_hover_text": "#ffffff",
 
         # --- Expander ---
         "expander_header_bg": "#1e1e30",
         "expander_content_bg": "#1e1e30",
 
         # --- メインエリア popover ---
-        "main_popover_bg_start": "#252540",
-        "main_popover_bg_end": "#202035",
-        "main_popover_hover_start": "#333350",
-        "main_popover_hover_end": "#2e2e48",
+        "main_popover_bg_start": "#1a1a30",
+        "main_popover_bg_end": "#151528",
+        "main_popover_hover_start": "#38385a",
+        "main_popover_hover_end": "#30304e",
 
         # --- コードブロック ---
-        "code_bg": "#0a0a14",
+        "code_bg": "#1e1e2e",
         "code_text": "#d4d4d4",
 
         # --- メインプライマリボタン ---
         "main_primary_btn_start": "#1b5e20",
         "main_primary_btn_end": "#2e7d32",
         "main_primary_btn_text": "#a5d6a7",
-        "main_primary_btn_hover_start": "#2e7d32",
-        "main_primary_btn_hover_end": "#388e3c",
-        "main_primary_btn_hover_text": "#c8e6c9",
+        "main_primary_btn_hover_start": "#43a047",
+        "main_primary_btn_hover_end": "#66bb6a",
+        "main_primary_btn_hover_text": "#ffffff",
 
         # --- オーバーレイ ---
         "overlay_bg": "rgba(0, 0, 0, 0.65)",
@@ -246,20 +264,20 @@ THEMES = {
         # --- ナビゲーションリンク ---
         "nav_bottom_bg": "#141e30",
         "nav_top_bg": "#141e14",
-        "nav_text": "#c0c0c8",
+        "nav_text": "#f0f0f0",
 
         # --- Streamlit ネイティブ override ---
         "st_app_bg": "#0a0a14",
         "st_widget_bg": "#1e1e30",
         "st_widget_border": "#3a3a58",
         "st_input_bg": "#1e1e30",
-        "st_input_text": "#e0e0e0",
-        "st_label_text": "#c0c0c8",
-        "st_caption_text": "#909090",
-        "st_metric_label": "#b0b0b0",
-        "st_metric_value": "#e0e0e0",
-        "st_header_text": "#e0e0e0",
-        "st_markdown_text": "#e0e0e0",
+        "st_input_text": "#f8f8f8",
+        "st_label_text": "#e8e8f0",
+        "st_caption_text": "#c0c0c8",
+        "st_metric_label": "#e0e0e8",
+        "st_metric_value": "#ffffff",
+        "st_header_text": "#ffffff",
+        "st_markdown_text": "#f8f8f8",
 
         # --- アラートボックス ---
         "alert_info_bg": "#0d1b2a",
@@ -458,10 +476,15 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
         padding: 6px 10px !important;
         text-indent: 0 !important;
         min-height: auto !important;
+        background-color: {t['btn_secondary_bg']} !important;
         border: 1px solid {t['btn_secondary_border']} !important;
         border-radius: 8px !important;
         box-shadow: 0 1px 4px {t['shadow_sm']};
         margin-bottom: 2px !important;
+    }}
+    [data-testid="stSidebar"] button[kind="secondary"]:hover {{
+        filter: brightness(1.15) !important;
+        box-shadow: 0 2px 8px {t['shadow_md']} !important;
     }}
     [data-testid="stSidebar"] button[kind="secondary"] p {{
         text-align: left !important;
@@ -554,13 +577,25 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
     }}
 
     /* ===== メインエリアのpopover ===== */
-    .main button[data-testid="stPopoverButton"] {{
+    .main button[data-testid="stPopoverButton"],
+    [data-testid="stMainBlockContainer"] button[data-testid="stPopoverButton"],
+    .block-container button[data-testid="stPopoverButton"],
+    .stApp > div > div > section.main button[data-testid="stPopoverButton"] {{
         background: linear-gradient(135deg, {t['main_popover_bg_start']} 0%, {t['main_popover_bg_end']} 100%) !important;
+        border: 1px solid {t['st_widget_border']} !important;
         border-radius: 8px !important;
         box-shadow: 0 2px 6px {t['shadow_sm']};
+        color: {t['text_primary']} !important;
     }}
-    .main button[data-testid="stPopoverButton"]:hover {{
+    .main button[data-testid="stPopoverButton"]:hover,
+    [data-testid="stMainBlockContainer"] button[data-testid="stPopoverButton"]:hover,
+    .block-container button[data-testid="stPopoverButton"]:hover,
+    .stApp > div > div > section.main button[data-testid="stPopoverButton"]:hover {{
         background: linear-gradient(135deg, {t['main_popover_hover_start']} 0%, {t['main_popover_hover_end']} 100%) !important;
+    }}
+    .main button[data-testid="stPopoverButton"] p,
+    [data-testid="stMainBlockContainer"] button[data-testid="stPopoverButton"] p {{
+        color: {t['text_primary']} !important;
     }}
 
     /* ===== メトリクス数値のフォントサイズ ===== */
@@ -572,7 +607,16 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
     .main pre,
     .main code,
     .main [data-testid="stMarkdown"] pre,
-    .main [data-testid="stMarkdown"] code {{
+    .main [data-testid="stMarkdown"] code,
+    .main [data-testid="stCodeBlock"],
+    .main [data-testid="stCodeBlock"] pre,
+    .main [data-testid="stCodeBlock"] code,
+    .main [data-testid="stCode"],
+    .main [data-testid="stCode"] pre,
+    .main [data-testid="stCode"] code,
+    .main .stCodeBlock,
+    .main .stCodeBlock pre,
+    .main .stCodeBlock code {{
         background-color: {t['code_bg']} !important;
         color: {t['code_text']} !important;
     }}
@@ -584,6 +628,17 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
     .main code {{
         padding: 2px 6px !important;
         border-radius: 4px !important;
+    }}
+    /* コードブロック内 token 色のオーバーライド */
+    .main pre code span,
+    .main [data-testid="stCodeBlock"] pre code span,
+    .main [data-testid="stCode"] pre code span {{
+        color: inherit !important;
+    }}
+    /* Streamlit のコードブロックラッパー（白背景を防止）*/
+    .main pre:has(code),
+    .main div:has(> pre > code) {{
+        background-color: {t['code_bg']} !important;
     }}
 
     /* ===== メインエリアのプライマリボタン ===== */
@@ -603,6 +658,71 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
     .main [data-testid="stFormSubmitButton"] button:hover {{
         background: linear-gradient(135deg, {t['main_primary_btn_hover_start']} 0%, {t['main_primary_btn_hover_end']} 100%) !important;
         color: {t['main_primary_btn_hover_text']} !important;
+    }}
+
+    /* ===== 危険ボタン（削除系）===== */
+    .danger-btn-marker {{
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }}
+    /* :has() セレクタでマーカーの次コンテナ内ボタンをターゲット */
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button[kind="primary"],
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button,
+    *:has(> .danger-btn-marker) + * button[kind="primary"],
+    *:has(> .danger-btn-marker) + * button,
+    .danger-btn-marker + div button[kind="primary"],
+    .danger-btn-marker + div button {{
+        background: linear-gradient(135deg, {t['danger_btn_start']} 0%, {t['danger_btn_end']} 100%) !important;
+        color: {t['danger_btn_text']} !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }}
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button[kind="primary"]:hover,
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button:hover,
+    *:has(> .danger-btn-marker) + * button[kind="primary"]:hover,
+    *:has(> .danger-btn-marker) + * button:hover,
+    .danger-btn-marker + div button[kind="primary"]:hover,
+    .danger-btn-marker + div button:hover {{
+        background: linear-gradient(135deg, {t['danger_btn_hover_start']} 0%, {t['danger_btn_hover_end']} 100%) !important;
+        color: {t['danger_btn_hover_text']} !important;
+    }}
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button p,
+    *:has(> .danger-btn-marker) + * button p,
+    .danger-btn-marker + div button p {{
+        color: {t['danger_btn_text']} !important;
+    }}
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button:hover p,
+    *:has(> .danger-btn-marker) + * button:hover p,
+    .danger-btn-marker + div button:hover p {{
+        color: {t['danger_btn_hover_text']} !important;
+    }}
+    /* サイドバー内の危険ボタン */
+    [data-testid="stSidebar"] *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button[kind="primary"],
+    [data-testid="stSidebar"] *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button,
+    [data-testid="stSidebar"] *:has(> .danger-btn-marker) + * button[kind="primary"],
+    [data-testid="stSidebar"] *:has(> .danger-btn-marker) + * button,
+    [data-testid="stSidebar"] .danger-btn-marker + div button[kind="primary"],
+    [data-testid="stSidebar"] .danger-btn-marker + div button {{
+        background: linear-gradient(135deg, {t['danger_btn_start']} 0%, {t['danger_btn_end']} 100%) !important;
+        color: {t['danger_btn_text']} !important;
+        border: none !important;
+    }}
+    [data-testid="stSidebar"] *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button[kind="primary"]:hover,
+    [data-testid="stSidebar"] *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button:hover,
+    [data-testid="stSidebar"] *:has(> .danger-btn-marker) + * button[kind="primary"]:hover,
+    [data-testid="stSidebar"] *:has(> .danger-btn-marker) + * button:hover,
+    [data-testid="stSidebar"] .danger-btn-marker + div button[kind="primary"]:hover,
+    [data-testid="stSidebar"] .danger-btn-marker + div button:hover {{
+        background: linear-gradient(135deg, {t['danger_btn_hover_start']} 0%, {t['danger_btn_hover_end']} 100%) !important;
+        color: {t['danger_btn_hover_text']} !important;
+    }}
+    [data-testid="stSidebar"] *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button p,
+    [data-testid="stSidebar"] *:has(> .danger-btn-marker) + * button p,
+    [data-testid="stSidebar"] .danger-btn-marker + div button p {{
+        color: {t['danger_btn_text']} !important;
     }}
 
     /* ===== LLM処理中オーバーレイ ===== */
@@ -650,7 +770,7 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
         color: {t['st_header_text']} !important;
     }}
     .main p, .main li, .main span, .main div {{
-        color: {t['st_markdown_text']};
+        color: {t['st_markdown_text']} !important;
     }}
     .main [data-testid="stMarkdown"] p {{
         color: {t['st_markdown_text']} !important;
@@ -802,6 +922,66 @@ def generate_theme_css(theme_name: str, font_zoom: float = 0.8) -> str:
     [data-testid="stSidebar"] [data-testid="stInfo"] p {{
         color: {t['alert_info_text']} !important;
     }}
+
+    /* ===== 全ボタン共通 hover トランジション ===== */
+    button {{
+        transition: all 0.15s ease !important;
+    }}
+    button:hover {{
+        transform: translateY(-1px);
+        transition: all 0.15s ease !important;
+    }}
+
+    /* ===== data-danger 属性ベースの危険ボタンスタイル (JS fallback) ===== */
+    button[data-danger="true"],
+    button[data-danger="true"][kind="primary"] {{
+        background: linear-gradient(135deg, {t['danger_btn_start']} 0%, {t['danger_btn_end']} 100%) !important;
+        color: {t['danger_btn_text']} !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+    }}
+    button[data-danger="true"]:hover,
+    button[data-danger="true"][kind="primary"]:hover {{
+        background: linear-gradient(135deg, {t['danger_btn_hover_start']} 0%, {t['danger_btn_hover_end']} 100%) !important;
+        color: {t['danger_btn_hover_text']} !important;
+    }}
+    button[data-danger="true"] p {{
+        color: {t['danger_btn_text']} !important;
+    }}
+    button[data-danger="true"]:hover p {{
+        color: {t['danger_btn_hover_text']} !important;
+    }}
 </style>
 """
     return css
+
+
+def generate_danger_btn_js() -> str:
+    """危険ボタンマーカーの JS: .danger-btn-marker の次コンテナ内ボタンに data-danger 属性を付与"""
+    return """
+<script>
+(function() {
+    var doc = window.parent.document;
+    function markDangerButtons() {
+        doc.querySelectorAll('.danger-btn-marker').forEach(function(marker) {
+            var container = marker.closest('[data-testid="stElementContainer"]') ||
+                            marker.closest('[data-testid="element-container"]') ||
+                            marker.parentElement && marker.parentElement.parentElement;
+            if (!container) return;
+            var next = container.nextElementSibling;
+            if (!next) return;
+            var btn = next.querySelector('button');
+            if (btn && !btn.hasAttribute('data-danger')) {
+                btn.setAttribute('data-danger', 'true');
+            }
+        });
+    }
+    // 初回実行 + MutationObserver で動的変更に対応
+    setTimeout(markDangerButtons, 300);
+    setTimeout(markDangerButtons, 1000);
+    var obs = new MutationObserver(function() { setTimeout(markDangerButtons, 50); });
+    obs.observe(doc.body, { childList: true, subtree: true });
+})();
+</script>
+"""

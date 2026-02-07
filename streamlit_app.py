@@ -34,7 +34,7 @@ import anthropic
 load_dotenv()
 
 from lib.logger import get_logger
-from lib.themes import THEMES, generate_theme_css
+from lib.themes import THEMES, generate_theme_css, generate_danger_btn_js
 logger = get_logger(__name__)
 
 # ========================================
@@ -59,6 +59,9 @@ if "app_theme" not in st.session_state:
 FONT_ZOOM = 0.8
 _current_theme = THEMES[st.session_state.app_theme]
 st.markdown(generate_theme_css(st.session_state.app_theme, FONT_ZOOM), unsafe_allow_html=True)
+
+# 危険ボタン（削除系）の data-danger 属性付与 JS
+components.html(generate_danger_btn_js(), height=0)
 
 # (旧 CSS は lib/themes.py の generate_theme_css() に統合済み)
 
@@ -692,6 +695,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                 st.warning("本当に削除しますか？\n⚠️ 削除後は復元できません")
                 col_a, col_b = st.columns(2)
                 with col_a:
+                    st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
                     if st.button("✓ 削除", key=f"confirm_del_{session_id}", type="primary"):
                         logger.info("サイドバー: セッション削除確定 session_id=%s", session_id)
                         log_data = load_log_data()
@@ -767,6 +771,7 @@ if st.session_state.view_mode == "trash":
     
     if deleted_sessions:
         # ゴミ箱を空にするボタン（上部）
+        st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
         if st.button("🗑️ ゴミ箱を空にする", type="primary", use_container_width=False):
             logger.info("ゴミ箱を空にする操作")
             log_data = load_log_data()
@@ -817,6 +822,7 @@ if st.session_state.view_mode == "trash":
         
         # 選択したセッションを削除するボタン（1つ以上チェック時のみ有効）
         if has_checked:
+            st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
             if st.button("選択したセッションを削除", type="primary", use_container_width=False):
                 log_data = load_log_data()
                 for sid in trash_checked_ids:
@@ -826,6 +832,7 @@ if st.session_state.view_mode == "trash":
                 save_log_data(log_data)
                 st.rerun()
         else:
+            st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
             st.button("選択したセッションを削除", type="primary", disabled=True, use_container_width=False, help="削除するセッションを1つ以上チェックしてください")
     else:
         st.info("🗑️ ゴミ箱は空です")
@@ -1070,6 +1077,7 @@ else:
                     st.warning("本当に削除しますか？\n⚠️ 削除後は復元できません")
                     col_a, col_b = st.columns(2)
                     with col_a:
+                        st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
                         if st.button("✓ 削除", key="confirm_del_main", type="primary"):
                             logger.info("メイン: セッション削除確定 session_id=%s", st.session_state.current_session_id)
                             log_data = load_log_data()
