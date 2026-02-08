@@ -84,6 +84,9 @@ THEMES = {
         "danger_btn_hover_start": "#c62828",
         "danger_btn_hover_end": "#b71c1c",
         "danger_btn_hover_text": "#ffffff",
+        "danger_btn_disabled_start": "#f8bbd0",
+        "danger_btn_disabled_end": "#f48fb1",
+        "danger_btn_disabled_text": "#ffffff",
 
         # --- Expander ---
         "expander_header_bg": "#ffffff",
@@ -227,6 +230,9 @@ THEMES = {
         "danger_btn_hover_start": "#c62828",
         "danger_btn_hover_end": "#ef5350",
         "danger_btn_hover_text": "#ffffff",
+        "danger_btn_disabled_start": "#4a1525",
+        "danger_btn_disabled_end": "#5a1a2e",
+        "danger_btn_disabled_text": "#e8a0b0",
 
         # --- Expander ---
         "expander_header_bg": "#1e1e30",

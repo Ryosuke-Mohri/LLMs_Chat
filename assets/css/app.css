@@ -421,6 +421,27 @@
         color: {{danger_btn_text}} !important;
     }
 
+    /* ===== 無効状態の危険ボタン（薄ピンク） ===== */
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button:disabled[kind="primary"],
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button:disabled,
+    *:has(> .danger-btn-marker) + * button:disabled[kind="primary"],
+    *:has(> .danger-btn-marker) + * button:disabled,
+    .danger-btn-marker + div button:disabled[kind="primary"],
+    .danger-btn-marker + div button:disabled {
+        background: linear-gradient(135deg, {{danger_btn_disabled_start}} 0%, {{danger_btn_disabled_end}} 100%) !important;
+        color: {{danger_btn_disabled_text}} !important;
+        border: none !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+        cursor: not-allowed !important;
+    }
+    *:has(> [data-testid="stMarkdown"] .danger-btn-marker) + * button:disabled p,
+    *:has(> .danger-btn-marker) + * button:disabled p,
+    .danger-btn-marker + div button:disabled p {
+        color: {{danger_btn_disabled_text}} !important;
+    }
+
     /* ===== LLM処理中オーバーレイ ===== */
     .loading-overlay {
         position: fixed;
@@ -647,4 +668,15 @@
     }
     button[data-danger="true"]:hover p {
         color: {{danger_btn_hover_text}} !important;
+    }
+    /* disabled 状態の data-danger ボタン（薄ピンク） */
+    button:disabled[data-danger="true"],
+    button:disabled[data-danger="true"][kind="primary"] {
+        background: linear-gradient(135deg, {{danger_btn_disabled_start}} 0%, {{danger_btn_disabled_end}} 100%) !important;
+        color: {{danger_btn_disabled_text}} !important;
+        opacity: 1 !important;
+        cursor: not-allowed !important;
+    }
+    button:disabled[data-danger="true"] p {
+        color: {{danger_btn_disabled_text}} !important;
     }

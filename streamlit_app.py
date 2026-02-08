@@ -458,12 +458,10 @@ if "is_new_session" not in st.session_state:
     st.session_state.is_new_session = True
 if "view_mode" not in st.session_state:
     st.session_state.view_mode = "chat"  # "chat" or "trash"
-if "delete_confirm_session" not in st.session_state:
-    st.session_state.delete_confirm_session = None  # 削除確認中のセッションID
 if "generating_name" not in st.session_state:
     st.session_state.generating_name = False
-if "sidebar_rename_session_id" not in st.session_state:
-    st.session_state.sidebar_rename_session_id = None  # 左ペインで名前変更フォーム表示中のセッションID
+if "trash_purge_mode" not in st.session_state:
+    st.session_state.trash_purge_mode = None  # ゴミ箱の完全削除確認フロー用 (None / "selected" / "all" / "single:{session_id}")
 if "_close_popover" not in st.session_state:
     st.session_state._close_popover = False  # popover を強制的に閉じるためのフラグ
 if "is_processing" not in st.session_state:
@@ -495,8 +493,6 @@ if st.sidebar.button("➕ 新規セッション", use_container_width=True):
     st.session_state.selected_model = None
     st.session_state.is_new_session = True
     st.session_state.view_mode = "chat"
-    st.session_state.delete_confirm_session = None
-    st.session_state.sidebar_rename_session_id = None
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -567,72 +563,60 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
             st.session_state.selected_model = model_info_copy
             st.session_state.is_new_session = False
             st.session_state.view_mode = "chat"
-            st.session_state.delete_confirm_session = None
             st.rerun()
     
     with col2:
         # メニューボタン（▾）
         with st.popover("▾"):
-            # セッション名変更：ポップアップ内で入力・保存
-            if st.session_state.get("sidebar_rename_session_id") == session_id:
-                new_name = st.text_input("新しいセッション名", value=session_name, key=f"sidebar_rename_input_{session_id}")
-                col_save, col_cancel = st.columns(2)
-                with col_save:
-                    if st.button("変更保存", key=f"sidebar_rename_save_{session_id}", use_container_width=True):
-                        if new_name and new_name.strip():
-                            log_data = load_log_data()
-                            if session_id in log_data.get("sessions", {}):
-                                old_name = log_data["sessions"][session_id]["session_name"]
-                                logger.info("サイドバー名前変更: session_id=%s, '%s' → '%s'", session_id, old_name, new_name.strip())
-                                log_data["sessions"][session_id]["session_name"] = new_name.strip()
-                                log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
-                                log_data["sessions"][session_id]["name_changes"].append({
-                                    "timestamp": datetime.now().isoformat(),
-                                    "old_name": old_name,
-                                    "new_name": new_name.strip()
-                                })
-                                save_log_data(log_data)
-                            st.session_state.sidebar_rename_session_id = None
-                            st.session_state._close_popover = True  # 次回描画で popover を閉じる
-                            st.rerun()
-                with col_cancel:
-                    if st.button("キャンセル", key=f"sidebar_rename_cancel_{session_id}", use_container_width=True):
-                        st.session_state.sidebar_rename_session_id = None
-                        st.session_state._close_popover = True
-                        st.rerun()
-            else:
-                if st.button("📝 名前変更", key=f"menu_rename_{session_id}", use_container_width=True):
-                    st.session_state.sidebar_rename_session_id = session_id
-                    st.rerun()
-            
-            # セッション名生成
-            if st.button("✨ 名前生成", key=f"menu_gen_{session_id}", use_container_width=True):
-                st.session_state.is_processing = True
-                with st.spinner("生成中..."):
-                    generated = generate_session_name_with_llm(
-                        session_id, model_info, session_info.get("conversation_history", [])
-                    )
-                    if generated:
-                        log_data = load_log_data()
-                        old_name = log_data["sessions"][session_id]["session_name"]
-                        log_data["sessions"][session_id]["session_name"] = generated
-                        log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
-                        log_data["sessions"][session_id]["name_changes"].append({
-                            "timestamp": datetime.now().isoformat(),
-                            "old_name": old_name,
-                            "new_name": generated,
-                            "generated_by_llm": True
-                        })
-                        save_log_data(log_data)
-                        st.session_state.is_processing = False
-                        st.session_state._close_popover = True
-                        st.rerun()
-                    else:
-                        st.session_state.is_processing = False
-                        st.warning("セッション名を生成できませんでした")
-            
-            # セッション終了/再開
             if status == "active":
+                # ===== アクティブセッション: 名前変更・名前生成・終了 =====
+                
+                # セッション名変更（常にテキスト入力を表示）
+                new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"sidebar_rename_input_{session_id}")
+                if st.button("変更保存", key=f"sidebar_rename_save_{session_id}", use_container_width=True):
+                    if new_name and new_name.strip() and new_name.strip() != session_name:
+                        log_data = load_log_data()
+                        if session_id in log_data.get("sessions", {}):
+                            old_name = log_data["sessions"][session_id]["session_name"]
+                            logger.info("サイドバー名前変更: session_id=%s, '%s' → '%s'", session_id, old_name, new_name.strip())
+                            log_data["sessions"][session_id]["session_name"] = new_name.strip()
+                            log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
+                            log_data["sessions"][session_id]["name_changes"].append({
+                                "timestamp": datetime.now().isoformat(),
+                                "old_name": old_name,
+                                "new_name": new_name.strip()
+                            })
+                            save_log_data(log_data)
+                        st.session_state._close_popover = True
+                        st.rerun()
+                
+                # セッション名生成
+                if st.button("✨ 名前生成", key=f"menu_gen_{session_id}", use_container_width=True):
+                    st.session_state.is_processing = True
+                    with st.spinner("生成中..."):
+                        generated = generate_session_name_with_llm(
+                            session_id, model_info, session_info.get("conversation_history", [])
+                        )
+                        if generated:
+                            log_data = load_log_data()
+                            old_name = log_data["sessions"][session_id]["session_name"]
+                            log_data["sessions"][session_id]["session_name"] = generated
+                            log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
+                            log_data["sessions"][session_id]["name_changes"].append({
+                                "timestamp": datetime.now().isoformat(),
+                                "old_name": old_name,
+                                "new_name": generated,
+                                "generated_by_llm": True
+                            })
+                            save_log_data(log_data)
+                            st.session_state.is_processing = False
+                            st.session_state._close_popover = True
+                            st.rerun()
+                        else:
+                            st.session_state.is_processing = False
+                            st.warning("セッション名を生成できませんでした")
+                
+                # セッション終了
                 if st.button("🏁 終了", key=f"menu_end_{session_id}", use_container_width=True):
                     logger.info("サイドバー: セッション終了 session_id=%s", session_id)
                     log_data = load_log_data()
@@ -667,7 +651,11 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                     save_log_data(log_data)
                     st.session_state._close_popover = True
                     st.rerun()
+            
             else:
+                # ===== 終了済セッション: 再開・削除（ダイレクト実行） =====
+                
+                # セッション再開
                 if st.button("🔄 再開", key=f"menu_resume_{session_id}", use_container_width=True):
                     logger.info("サイドバー: セッション再開 session_id=%s", session_id)
                     log_data = load_log_data()
@@ -684,36 +672,20 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                     st.session_state.view_mode = "chat"
                     st.session_state._close_popover = True
                     st.rerun()
-            
-            # 削除（2段階確認）
-            if st.session_state.delete_confirm_session == session_id:
-                st.warning("本当に削除しますか？\n⚠️ 削除後は復元できません")
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
-                    if st.button("✓ 削除", key=f"confirm_del_{session_id}", type="primary"):
-                        logger.info("サイドバー: セッション削除確定 session_id=%s", session_id)
-                        log_data = load_log_data()
-                        log_data["sessions"][session_id]["deleted"] = True
-                        log_data["sessions"][session_id]["deleted_at"] = datetime.now().isoformat()
-                        log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
-                        save_log_data(log_data)
-                        if st.session_state.current_session_id == session_id:
-                            st.session_state.current_session_id = None
-                            st.session_state.conversation_history = []
-                            st.session_state.selected_model = None
-                            st.session_state.is_new_session = True
-                        st.session_state.delete_confirm_session = None
-                        st.session_state._close_popover = True
-                        st.rerun()
-                with col_b:
-                    if st.button("✗ キャンセル", key=f"cancel_del_{session_id}"):
-                        st.session_state.delete_confirm_session = None
-                        st.session_state._close_popover = True
-                        st.rerun()
-            else:
+                
+                # セッション削除（ゴミ箱へ移動・確認なし）
                 if st.button("🗑️ 削除", key=f"menu_del_{session_id}", use_container_width=True):
-                    st.session_state.delete_confirm_session = session_id
+                    logger.info("サイドバー: セッション削除 session_id=%s", session_id)
+                    log_data = load_log_data()
+                    log_data["sessions"][session_id]["deleted"] = True
+                    log_data["sessions"][session_id]["deleted_at"] = datetime.now().isoformat()
+                    log_data["sessions"][session_id]["updated_at"] = datetime.now().isoformat()
+                    save_log_data(log_data)
+                    if st.session_state.current_session_id == session_id:
+                        st.session_state.current_session_id = None
+                        st.session_state.conversation_history = []
+                        st.session_state.selected_model = None
+                        st.session_state.is_new_session = True
                     st.session_state._close_popover = True
                     st.rerun()
 
@@ -742,7 +714,7 @@ if st.sidebar.button(f"🗑️ ゴミ箱 ({len(deleted_sessions)})", use_contain
     st.session_state.view_mode = "trash"
     st.session_state.current_session_id = None
     st.session_state.is_new_session = False
-    st.session_state.sidebar_rename_session_id = None
+    st.session_state.trash_purge_mode = None
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -764,23 +736,72 @@ if st.session_state.view_mode == "trash":
         reverse=True
     )
     
-    if deleted_sessions:
-        # ゴミ箱を空にするボタン（上部）
-        st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
-        if st.button("🗑️ ゴミ箱を空にする", type="primary", use_container_width=False):
-            logger.info("ゴミ箱を空にする操作")
+    has_sessions = len(deleted_sessions) > 0
+    
+    # --- 一括操作ボタン群（上部） ---
+    btn_row1_col1, btn_row1_col2, btn_row1_col3 = st.columns(3)
+    
+    # チェック済みセッションを事前に取得（ボタンの有効/無効判定に使用）
+    trash_checked_ids = {sid for sid, _ in deleted_sessions if st.session_state.get(f"trash_cb_{sid}", False)}
+    has_checked = len(trash_checked_ids) > 0
+    
+    with btn_row1_col1:
+        if st.button("☑️ 全て選択", use_container_width=True, disabled=not has_sessions):
+            for sid, _ in deleted_sessions:
+                st.session_state[f"trash_cb_{sid}"] = True
+            st.rerun()
+    
+    with btn_row1_col2:
+        if st.button("⬜ チェックを全て外す", use_container_width=True, disabled=not has_checked):
+            for sid, _ in deleted_sessions:
+                st.session_state[f"trash_cb_{sid}"] = False
+            st.rerun()
+    
+    with btn_row1_col3:
+        if st.button("🔄 チェックしたセッションを復元", use_container_width=True, disabled=not has_checked):
+            logger.info("ゴミ箱: チェックしたセッションを復元 (%d件)", len(trash_checked_ids))
             log_data = load_log_data()
-            for sid, sinfo in list(log_data.get("sessions", {}).items()):
-                if sinfo.get("deleted", False) and not sinfo.get("purged_from_trash", False):
-                    log_data["sessions"][sid]["purged_from_trash"] = True
+            for sid in trash_checked_ids:
+                if sid in log_data.get("sessions", {}):
+                    log_data["sessions"][sid]["deleted"] = False
+                    log_data["sessions"][sid].pop("deleted_at", None)
                     log_data["sessions"][sid]["updated_at"] = datetime.now().isoformat()
             save_log_data(log_data)
             st.rerun()
+    
+    st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
+    if st.button("🗑️ チェックしたセッションを完全削除", type="primary", use_container_width=True, disabled=not has_checked):
+        st.session_state.trash_purge_mode = "selected"
+        st.rerun()
+    
+    # --- 完全削除の確認フロー ---
+    if st.session_state.trash_purge_mode == "selected":
         st.markdown("")
+        st.error("⚠️ 完全削除すると元に戻せません")
         
-        st.warning("⚠️ 削除されたセッションは復元できません（履歴として表示のみ）")
-        st.markdown("")
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
+            if st.button("完全削除する", type="primary", use_container_width=True):
+                logger.info("ゴミ箱: チェックしたセッションを完全削除 (%d件)", len(trash_checked_ids))
+                log_data = load_log_data()
+                for sid in trash_checked_ids:
+                    if sid in log_data.get("sessions", {}):
+                        log_data["sessions"][sid]["purged_from_trash"] = True
+                        log_data["sessions"][sid]["updated_at"] = datetime.now().isoformat()
+                save_log_data(log_data)
+                st.session_state.trash_purge_mode = None
+                st.rerun()
         
+        with cancel_col:
+            if st.button("キャンセル", use_container_width=True):
+                st.session_state.trash_purge_mode = None
+                st.rerun()
+    
+    st.markdown("---")
+    
+    # --- セッション一覧 ---
+    if has_sessions:
         for session_id, session_info in deleted_sessions:
             session_name = session_info.get("session_name", session_id)
             model_info = session_info.get("model", {})
@@ -810,32 +831,16 @@ if st.session_state.view_mode == "trash":
                 with col5:
                     st.metric("コスト", f"${total_cost:.4f}")
                 st.markdown("---")
-        
-        # チェック済みセッションを取得
-        trash_checked_ids = {sid for sid, _ in deleted_sessions if st.session_state.get(f"trash_cb_{sid}", False)}
-        has_checked = len(trash_checked_ids) > 0
-        
-        # 選択したセッションを削除するボタン（1つ以上チェック時のみ有効）
-        if has_checked:
-            st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
-            if st.button("選択したセッションを削除", type="primary", use_container_width=False):
-                log_data = load_log_data()
-                for sid in trash_checked_ids:
-                    if sid in log_data.get("sessions", {}):
-                        log_data["sessions"][sid]["purged_from_trash"] = True
-                        log_data["sessions"][sid]["updated_at"] = datetime.now().isoformat()
-                save_log_data(log_data)
-                st.rerun()
-        else:
-            st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
-            st.button("選択したセッションを削除", type="primary", disabled=True, use_container_width=False, help="削除するセッションを1つ以上チェックしてください")
     else:
         st.info("🗑️ ゴミ箱は空です")
+    
+    st.markdown("")
     
     # 戻るボタン
     if st.button("↩️ 戻る", use_container_width=True):
         st.session_state.view_mode = "chat"
         st.session_state.is_new_session = True
+        st.session_state.trash_purge_mode = None
         st.rerun()
 
 else:
@@ -971,56 +976,58 @@ else:
         col_left, col_right = st.columns([3, 1])
         with col_right:
             with st.popover("操作"):
-                # セッション名変更
-                new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"rename_input_{st.session_state.current_session_id}")
-                if st.button("入力した名前に変更", key="rename_btn", use_container_width=True):
-                    if new_name and new_name != session_name:
-                        log_data = load_log_data()
-                        old_name = log_data["sessions"][st.session_state.current_session_id]["session_name"]
-                        logger.info("メイン名前変更: session_id=%s, '%s' → '%s'", st.session_state.current_session_id, old_name, new_name)
-                        log_data["sessions"][st.session_state.current_session_id]["session_name"] = new_name
-                        log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
-                        log_data["sessions"][st.session_state.current_session_id]["name_changes"].append({
-                            "timestamp": datetime.now().isoformat(),
-                            "old_name": old_name,
-                            "new_name": new_name
-                        })
-                        save_log_data(log_data)
-                        st.success("セッション名を変更しました")
-                        st.session_state._close_popover = True
-                        st.rerun()
-                
-                # セッション名生成
-                if st.button("✨ LLMで名前を生成", key="gen_name_btn", use_container_width=True):
-                    st.session_state.is_processing = True
-                    with st.spinner("生成中..."):
-                        generated = generate_session_name_with_llm(
-                            st.session_state.current_session_id,
-                            model_info,
-                            st.session_state.conversation_history
-                        )
-                        if generated:
+                if session_status == "active":
+                    # ===== アクティブセッション: 名前変更・名前生成・終了 =====
+                    
+                    # セッション名変更
+                    new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"rename_input_{st.session_state.current_session_id}")
+                    if st.button("入力した名前に変更", key="rename_btn", use_container_width=True):
+                        if new_name and new_name != session_name:
                             log_data = load_log_data()
                             old_name = log_data["sessions"][st.session_state.current_session_id]["session_name"]
-                            log_data["sessions"][st.session_state.current_session_id]["session_name"] = generated
+                            logger.info("メイン名前変更: session_id=%s, '%s' → '%s'", st.session_state.current_session_id, old_name, new_name)
+                            log_data["sessions"][st.session_state.current_session_id]["session_name"] = new_name
                             log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
                             log_data["sessions"][st.session_state.current_session_id]["name_changes"].append({
                                 "timestamp": datetime.now().isoformat(),
                                 "old_name": old_name,
-                                "new_name": generated,
-                                "generated_by_llm": True
+                                "new_name": new_name
                             })
                             save_log_data(log_data)
-                            st.session_state.is_processing = False
-                            st.success(f"生成完了: {generated}")
+                            st.success("セッション名を変更しました")
                             st.session_state._close_popover = True
                             st.rerun()
-                        else:
-                            st.session_state.is_processing = False
-                            st.warning("セッション名を生成できませんでした")
-                
-                # セッション終了/再開
-                if session_status == "active":
+                    
+                    # セッション名生成
+                    if st.button("✨ LLMで名前を生成", key="gen_name_btn", use_container_width=True):
+                        st.session_state.is_processing = True
+                        with st.spinner("生成中..."):
+                            generated = generate_session_name_with_llm(
+                                st.session_state.current_session_id,
+                                model_info,
+                                st.session_state.conversation_history
+                            )
+                            if generated:
+                                log_data = load_log_data()
+                                old_name = log_data["sessions"][st.session_state.current_session_id]["session_name"]
+                                log_data["sessions"][st.session_state.current_session_id]["session_name"] = generated
+                                log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
+                                log_data["sessions"][st.session_state.current_session_id]["name_changes"].append({
+                                    "timestamp": datetime.now().isoformat(),
+                                    "old_name": old_name,
+                                    "new_name": generated,
+                                    "generated_by_llm": True
+                                })
+                                save_log_data(log_data)
+                                st.session_state.is_processing = False
+                                st.success(f"生成完了: {generated}")
+                                st.session_state._close_popover = True
+                                st.rerun()
+                            else:
+                                st.session_state.is_processing = False
+                                st.warning("セッション名を生成できませんでした")
+                    
+                    # セッション終了
                     if st.button("🏁 このセッションを終了", key="end_session_btn", use_container_width=True):
                         logger.info("メイン: セッション終了 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
@@ -1056,7 +1063,11 @@ else:
                         st.success("セッションを終了しました")
                         st.session_state._close_popover = True
                         st.rerun()
+                
                 else:
+                    # ===== 終了済セッション: 再開・削除（ダイレクト実行） =====
+                    
+                    # セッション再開
                     if st.button("🔄 セッションを再開", key="resume_session_btn", use_container_width=True):
                         logger.info("メイン: セッション再開 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
@@ -1066,35 +1077,19 @@ else:
                         st.success("セッションを再開しました")
                         st.session_state._close_popover = True
                         st.rerun()
-                
-                # 削除（2段階確認）
-                if st.session_state.delete_confirm_session == st.session_state.current_session_id:
-                    st.warning("本当に削除しますか？\n⚠️ 削除後は復元できません")
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
-                        if st.button("✓ 削除", key="confirm_del_main", type="primary"):
-                            logger.info("メイン: セッション削除確定 session_id=%s", st.session_state.current_session_id)
-                            log_data = load_log_data()
-                            log_data["sessions"][st.session_state.current_session_id]["deleted"] = True
-                            log_data["sessions"][st.session_state.current_session_id]["deleted_at"] = datetime.now().isoformat()
-                            log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
-                            save_log_data(log_data)
-                            st.session_state.current_session_id = None
-                            st.session_state.conversation_history = []
-                            st.session_state.selected_model = None
-                            st.session_state.is_new_session = True
-                            st.session_state.delete_confirm_session = None
-                            st.session_state._close_popover = True
-                            st.rerun()
-                    with col_b:
-                        if st.button("✗ キャンセル", key="cancel_del_main"):
-                            st.session_state.delete_confirm_session = None
-                            st.session_state._close_popover = True
-                            st.rerun()
-                else:
+                    
+                    # セッション削除（ゴミ箱へ移動・確認なし）
                     if st.button("🗑️ このセッションを削除", key="delete_session_btn", use_container_width=True):
-                        st.session_state.delete_confirm_session = st.session_state.current_session_id
+                        logger.info("メイン: セッション削除 session_id=%s", st.session_state.current_session_id)
+                        log_data = load_log_data()
+                        log_data["sessions"][st.session_state.current_session_id]["deleted"] = True
+                        log_data["sessions"][st.session_state.current_session_id]["deleted_at"] = datetime.now().isoformat()
+                        log_data["sessions"][st.session_state.current_session_id]["updated_at"] = datetime.now().isoformat()
+                        save_log_data(log_data)
+                        st.session_state.current_session_id = None
+                        st.session_state.conversation_history = []
+                        st.session_state.selected_model = None
+                        st.session_state.is_new_session = True
                         st.session_state._close_popover = True
                         st.rerun()
         
