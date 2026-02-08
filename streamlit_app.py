@@ -341,6 +341,34 @@ def format_timestamp(ts_str):
         logger.warning("format_timestamp: パース失敗 ts_str=%s", ts_str)
         return ts_str
 
+def terminate_session(session_data):
+    """セッションを終了し統計を計算する。session_data を直接変更する。"""
+    messages = session_data.get("messages", [])
+    total_tokens = sum(m.get("metrics", {}).get("total_tokens", 0) for m in messages)
+    total_cost = sum(m.get("cost", {}).get("total_cost_usd", 0) for m in messages)
+    total_turns = len(messages)
+    response_times = [m.get("response", {}).get("response_time_seconds", 0) for m in messages]
+    avg_response_time = sum(response_times) / len(response_times) if response_times else 0
+    session_end = datetime.now()
+    session_start = datetime.fromisoformat(session_data.get("created_at", session_end.isoformat()))
+    session_duration = (session_end - session_start).total_seconds()
+    session_data["status"] = "completed"
+    session_data["ended_at"] = session_end.isoformat()
+    session_data["updated_at"] = session_end.isoformat()
+    session_data["stats"] = {
+        "total_turns": total_turns,
+        "total_tokens": total_tokens,
+        "total_cost_usd": round(total_cost, 6),
+        "total_cost_jpy": round(total_cost * USD_TO_JPY, 2),
+        "avg_response_time_seconds": round(avg_response_time, 3),
+        "min_response_time_seconds": round(min(response_times), 3) if response_times else 0,
+        "max_response_time_seconds": round(max(response_times), 3) if response_times else 0,
+        "session_duration_seconds": round(session_duration, 3),
+        "conversation_length": len(session_data.get("conversation_history", []))
+    }
+    logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs",
+                 total_turns, total_tokens, total_cost, session_duration)
+
 def generate_session_name_with_llm(session_id, model_info, conversation_history):
     """LLMを使ってセッション名を生成"""
     logger.info(
@@ -443,7 +471,7 @@ if "selected_model" not in st.session_state:
 if "is_new_session" not in st.session_state:
     st.session_state.is_new_session = True
 if "view_mode" not in st.session_state:
-    st.session_state.view_mode = "chat"  # "chat" or "trash"
+    st.session_state.view_mode = "chat"  # "chat" / "trash" / "batch" / "analysis"
 if "generating_name" not in st.session_state:
     st.session_state.generating_name = False
 if "trash_purge_mode" not in st.session_state:
@@ -616,34 +644,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                 if st.button("✔ セッションを終了", key=f"menu_end_{session_id}", use_container_width=True):
                     logger.info("サイドバー: セッション終了 session_id=%s", session_id)
                     log_data = load_log_data()
-                    session_data = log_data["sessions"][session_id]
-                    messages = session_data.get("messages", [])
-                    
-                    total_tokens = sum(m.get("metrics", {}).get("total_tokens", 0) for m in messages)
-                    total_cost = sum(m.get("cost", {}).get("total_cost_usd", 0) for m in messages)
-                    total_turns = len(messages)
-                    response_times = [m.get("response", {}).get("response_time_seconds", 0) for m in messages]
-                    avg_response_time = sum(response_times) / len(response_times) if response_times else 0
-                    
-                    session_end = datetime.now()
-                    session_start = datetime.fromisoformat(session_data.get("created_at", session_end.isoformat()))
-                    session_duration = (session_end - session_start).total_seconds()
-                    
-                    session_data["status"] = "completed"
-                    session_data["ended_at"] = session_end.isoformat()
-                    session_data["updated_at"] = session_end.isoformat()
-                    session_data["stats"] = {
-                        "total_turns": total_turns,
-                        "total_tokens": total_tokens,
-                        "total_cost_usd": round(total_cost, 6),
-                        "total_cost_jpy": round(total_cost * USD_TO_JPY, 2),
-                        "avg_response_time_seconds": round(avg_response_time, 3),
-                        "min_response_time_seconds": round(min(response_times), 3) if response_times else 0,
-                        "max_response_time_seconds": round(max(response_times), 3) if response_times else 0,
-                        "session_duration_seconds": round(session_duration, 3),
-                        "conversation_length": len(session_data.get("conversation_history", []))
-                    }
-                    logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs", total_turns, total_tokens, total_cost, session_duration)
+                    terminate_session(log_data["sessions"][session_id])
                     save_log_data(log_data)
                     st.session_state._close_popover = True
                     st.rerun()
@@ -700,6 +701,19 @@ with st.sidebar.expander(f"✅ 終了済み ({len(completed_sessions)})", expand
             render_session_item(session_id, session_info, container=st, show_resume=True, session_type="completed")
     else:
         st.caption("終了済みのセッションはありません")
+
+# --- 一括操作 / 分析 ---
+if st.sidebar.button("📋 一括操作", use_container_width=True):
+    st.session_state.view_mode = "batch"
+    st.session_state.current_session_id = None
+    st.session_state.is_new_session = False
+    st.rerun()
+
+if st.sidebar.button("📊 分析", use_container_width=True):
+    st.session_state.view_mode = "analysis"
+    st.session_state.current_session_id = None
+    st.session_state.is_new_session = False
+    st.rerun()
 
 st.sidebar.markdown("---")
 
@@ -837,6 +851,235 @@ if st.session_state.view_mode == "trash":
         st.session_state.view_mode = "chat"
         st.session_state.is_new_session = True
         st.session_state.trash_purge_mode = None
+        st.rerun()
+
+elif st.session_state.view_mode == "batch":
+    # ========================================
+    # 一括操作ビュー
+    # ========================================
+    st.title("一括操作")
+    st.markdown("---")
+
+    log_data = load_log_data()
+    all_batch_sessions = sorted(
+        [(k, v) for k, v in log_data.get("sessions", {}).items()
+         if not v.get("deleted", False) and v.get("status") in ("active", "completed")],
+        key=lambda x: x[1].get("last_llm_response_at", x[1].get("created_at", "")),
+        reverse=True
+    )
+    total_count = len(all_batch_sessions)
+
+    # --- フィルター ---
+    with st.expander("フィルター"):
+        batch_name_kw = st.text_input("セッション名", key="batch_filter_name")
+        batch_body_kw = st.text_input("本文キーワード", key="batch_filter_body")
+
+        date_col1, date_col2 = st.columns(2)
+        with date_col1:
+            st.caption("セッション作成日時")
+            dcol_s1, dcol_e1 = st.columns(2)
+            with dcol_s1:
+                batch_created_start = st.date_input("開始", value=None, key="batch_filter_created_start")
+            with dcol_e1:
+                batch_created_end = st.date_input("終了", value=None, key="batch_filter_created_end")
+        with date_col2:
+            st.caption("最終更新日時")
+            dcol_s2, dcol_e2 = st.columns(2)
+            with dcol_s2:
+                batch_updated_start = st.date_input("開始", value=None, key="batch_filter_updated_start")
+            with dcol_e2:
+                batch_updated_end = st.date_input("終了", value=None, key="batch_filter_updated_end")
+
+        # モデル・プロバイダー・状態の選択肢を動的に生成
+        all_model_names = sorted(set(
+            s.get("model", {}).get("display_name") or get_display_name_for_deployment(s.get("model", {}).get("deployment_name", ""))
+            for _, s in all_batch_sessions
+        ))
+        all_providers = sorted(set(
+            s.get("model", {}).get("provider") or s.get("model", {}).get("constructor") or get_provider_for_deployment(s.get("model", {}).get("deployment_name", ""))
+            for _, s in all_batch_sessions
+        ))
+
+        filter_col1, filter_col2, filter_col3 = st.columns(3)
+        with filter_col1:
+            batch_filter_models = st.multiselect("モデル", options=all_model_names, key="batch_filter_model")
+        with filter_col2:
+            batch_filter_providers = st.multiselect("プロバイダー", options=all_providers, key="batch_filter_provider")
+        with filter_col3:
+            batch_filter_status = st.multiselect("状態", options=["アクティブ", "終了済み"], key="batch_filter_status")
+
+    # --- フィルタリングロジック ---
+    filtered_sessions = []
+    for sid, sinfo in all_batch_sessions:
+        # セッション名キーワード
+        if batch_name_kw and batch_name_kw.lower() not in sinfo.get("session_name", "").lower():
+            continue
+        # 本文キーワード
+        if batch_body_kw:
+            found = any(batch_body_kw.lower() in m.get("content", "").lower()
+                        for m in sinfo.get("conversation_history", []))
+            if not found:
+                continue
+        # セッション作成日時の範囲
+        if batch_created_start or batch_created_end:
+            created_str = sinfo.get("created_at", "")
+            if created_str:
+                try:
+                    created_date = datetime.fromisoformat(created_str).date()
+                    if batch_created_start and created_date < batch_created_start:
+                        continue
+                    if batch_created_end and created_date > batch_created_end:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            else:
+                continue
+        # 最終更新日時の範囲
+        if batch_updated_start or batch_updated_end:
+            updated_str = sinfo.get("last_llm_response_at", sinfo.get("created_at", ""))
+            if updated_str:
+                try:
+                    updated_date = datetime.fromisoformat(updated_str).date()
+                    if batch_updated_start and updated_date < batch_updated_start:
+                        continue
+                    if batch_updated_end and updated_date > batch_updated_end:
+                        continue
+                except (ValueError, TypeError):
+                    pass
+            else:
+                continue
+        # モデルフィルター
+        if batch_filter_models:
+            model_name = sinfo.get("model", {}).get("display_name") or get_display_name_for_deployment(sinfo.get("model", {}).get("deployment_name", ""))
+            if model_name not in batch_filter_models:
+                continue
+        # プロバイダーフィルター
+        if batch_filter_providers:
+            provider_name = sinfo.get("model", {}).get("provider") or sinfo.get("model", {}).get("constructor") or get_provider_for_deployment(sinfo.get("model", {}).get("deployment_name", ""))
+            if provider_name not in batch_filter_providers:
+                continue
+        # 状態フィルター
+        if batch_filter_status:
+            status_label = "アクティブ" if sinfo.get("status") == "active" else "終了済み"
+            if status_label not in batch_filter_status:
+                continue
+        filtered_sessions.append((sid, sinfo))
+
+    st.caption(f"{len(filtered_sessions)} / {total_count} 件表示")
+
+    # --- チェック状態と可視+チェック済み計算 ---
+    visible_ids = {sid for sid, _ in filtered_sessions}
+    visible_checked_ids = {sid for sid in visible_ids if st.session_state.get(f"batch_cb_{sid}", False)}
+    has_visible = len(filtered_sessions) > 0
+    has_visible_checked = len(visible_checked_ids) > 0
+
+    # --- 一括操作ボタン群 ---
+    btn_r1_c1, btn_r1_c2, btn_r1_c3 = st.columns(3)
+    with btn_r1_c1:
+        if st.button("☑️ 全て選択", key="batch_select_all", use_container_width=True, disabled=not has_visible):
+            for sid in visible_ids:
+                st.session_state[f"batch_cb_{sid}"] = True
+            st.rerun()
+    with btn_r1_c2:
+        if st.button("⬜ チェックを全て外す", key="batch_uncheck_all", use_container_width=True, disabled=not has_visible_checked):
+            for sid in visible_ids:
+                st.session_state[f"batch_cb_{sid}"] = False
+            st.rerun()
+    with btn_r1_c3:
+        if st.button("▶️ アクティブにする", key="batch_activate", use_container_width=True, disabled=not has_visible_checked):
+            logger.info("一括操作: アクティブにする (%d件)", len(visible_checked_ids))
+            log_data = load_log_data()
+            for sid in visible_checked_ids:
+                if sid in log_data.get("sessions", {}):
+                    log_data["sessions"][sid]["status"] = "active"
+                    log_data["sessions"][sid]["updated_at"] = datetime.now().isoformat()
+            save_log_data(log_data)
+            st.rerun()
+
+    btn_r2_c1, btn_r2_c2 = st.columns(2)
+    with btn_r2_c1:
+        if st.button("🕐 最終更新日時を更新", key="batch_update_ts", use_container_width=True, disabled=not has_visible_checked):
+            logger.info("一括操作: 最終更新日時を更新 (%d件)", len(visible_checked_ids))
+            log_data = load_log_data()
+            now_str = datetime.now().isoformat()
+            for sid in visible_checked_ids:
+                if sid in log_data.get("sessions", {}):
+                    log_data["sessions"][sid]["last_llm_response_at"] = now_str
+                    log_data["sessions"][sid]["updated_at"] = now_str
+            save_log_data(log_data)
+            st.rerun()
+    with btn_r2_c2:
+        st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
+        if st.button("🗑️ 削除する", key="batch_delete", type="primary", use_container_width=True, disabled=not has_visible_checked):
+            logger.info("一括操作: 削除する (%d件)", len(visible_checked_ids))
+            log_data = load_log_data()
+            now_str = datetime.now().isoformat()
+            for sid in visible_checked_ids:
+                if sid in log_data.get("sessions", {}):
+                    s = log_data["sessions"][sid]
+                    if s.get("status") == "active":
+                        terminate_session(s)
+                    s["deleted"] = True
+                    s["deleted_at"] = now_str
+            save_log_data(log_data)
+            # 現在のセッションが削除対象に含まれる場合はリセット
+            if st.session_state.get("current_session_id") in visible_checked_ids:
+                st.session_state.current_session_id = None
+                st.session_state.is_new_session = True
+            st.rerun()
+
+    st.markdown("---")
+
+    # --- セッション一覧 ---
+    if has_visible:
+        for session_id, session_info in filtered_sessions:
+            session_name = session_info.get("session_name", session_id)
+            model_info = session_info.get("model", {})
+            provider = model_info.get("provider") or model_info.get("constructor") or get_provider_for_deployment(model_info.get("deployment_name", ""))
+            type_icon = model_info.get("provider_icon") or model_info.get("constructor_icon") or get_provider_icon(provider)
+            display_name = model_info.get("display_name") or get_display_name_for_deployment(model_info.get("deployment_name", ""))
+
+            last_updated = session_info.get("last_llm_response_at", session_info.get("created_at", ""))
+            total_turns = len(session_info.get("messages", []))
+            status = session_info.get("status", "active")
+            status_label = "🟢 アクティブ" if status == "active" else "⏹️ 終了済み"
+
+            with st.container():
+                col_cb, col1, col2, col3, col4 = st.columns([0.4, 3, 2, 1, 1.2])
+                with col_cb:
+                    st.checkbox("", key=f"batch_cb_{session_id}", label_visibility="collapsed")
+                with col1:
+                    st.markdown(f"**{session_name}**")
+                    st.caption(f"{type_icon} {display_name} | 📍 {format_region_display(model_info.get('region', ''))}")
+                with col2:
+                    st.caption(f"🕐 最終更新: {format_timestamp(last_updated)}")
+                with col3:
+                    st.metric("ターン", total_turns)
+                with col4:
+                    st.markdown(f"**{status_label}**")
+            st.markdown("---")
+    else:
+        st.info("📋 対象セッションがありません")
+
+    st.markdown("")
+
+    # 戻るボタン
+    if st.button("↩️ 戻る", key="batch_back", use_container_width=True):
+        st.session_state.view_mode = "chat"
+        st.session_state.is_new_session = True
+        st.rerun()
+
+elif st.session_state.view_mode == "analysis":
+    # ========================================
+    # 分析ビュー（スタブ）
+    # ========================================
+    st.title("分析")
+    st.markdown("---")
+    st.info("この機能は準備中です")
+    st.markdown("")
+    if st.button("↩️ 戻る", key="analysis_back", use_container_width=True):
+        st.session_state.view_mode = "chat"
+        st.session_state.is_new_session = True
         st.rerun()
 
 else:
@@ -1040,34 +1283,7 @@ else:
                     if st.button("✔ セッションを終了", key="end_session_btn", use_container_width=True):
                         logger.info("メイン: セッション終了 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
-                        session_data = log_data["sessions"][st.session_state.current_session_id]
-                        messages = session_data.get("messages", [])
-                        
-                        total_tokens = sum(m.get("metrics", {}).get("total_tokens", 0) for m in messages)
-                        total_cost = sum(m.get("cost", {}).get("total_cost_usd", 0) for m in messages)
-                        total_turns = len(messages)
-                        response_times = [m.get("response", {}).get("response_time_seconds", 0) for m in messages]
-                        avg_response_time = sum(response_times) / len(response_times) if response_times else 0
-                        
-                        session_end = datetime.now()
-                        session_start = datetime.fromisoformat(session_data.get("created_at", session_end.isoformat()))
-                        session_duration = (session_end - session_start).total_seconds()
-                        
-                        session_data["status"] = "completed"
-                        session_data["ended_at"] = session_end.isoformat()
-                        session_data["updated_at"] = session_end.isoformat()
-                        session_data["stats"] = {
-                            "total_turns": total_turns,
-                            "total_tokens": total_tokens,
-                            "total_cost_usd": round(total_cost, 6),
-                            "total_cost_jpy": round(total_cost * USD_TO_JPY, 2),
-                            "avg_response_time_seconds": round(avg_response_time, 3),
-                            "min_response_time_seconds": round(min(response_times), 3) if response_times else 0,
-                            "max_response_time_seconds": round(max(response_times), 3) if response_times else 0,
-                            "session_duration_seconds": round(session_duration, 3),
-                            "conversation_length": len(session_data.get("conversation_history", []))
-                        }
-                        logger.debug("セッション終了統計: turns=%d, tokens=%d, cost=$%.6f, duration=%.1fs", total_turns, total_tokens, total_cost, session_duration)
+                        terminate_session(log_data["sessions"][st.session_state.current_session_id])
                         save_log_data(log_data)
                         st.success("セッションを終了しました")
                         st.session_state._close_popover = True
