@@ -161,7 +161,7 @@ THEMES = {
         "app_bg": "#0a0a14",
 
         # --- テキスト ---
-        "text_primary": "#f8f8f8",
+        "text_primary": "#e8e8e8",
         "text_secondary": "#e0e0e0",
         "text_muted": "#c0c0c0",
         "timestamp_color": "#d0d0d0",
@@ -182,8 +182,8 @@ THEMES = {
         "user_msg_border": "#42a5f5",
 
         # --- AI メッセージ ---
-        "ai_msg_bg_start": "#141a14",
-        "ai_msg_bg_end": "#1a221a",
+        "ai_msg_bg_start": "#1a221a",
+        "ai_msg_bg_end": "#202a20",
         "ai_msg_border": "#66bb6a",
 
         # --- コピーボタン ---
@@ -194,8 +194,8 @@ THEMES = {
         "copy_btn_copied_text": "#a5d6a7",
 
         # --- メトリクスボックス ---
-        "metric_box_bg_start": "#1e1c14",
-        "metric_box_bg_end": "#24221a",
+        "metric_box_bg_start": "#181610",
+        "metric_box_bg_end": "#1e1c14",
 
         # --- サイドバー ---
         "sidebar_title_color": "#64b5f6",
@@ -235,8 +235,8 @@ THEMES = {
         "danger_btn_disabled_text": "#e8a0b0",
 
         # --- Expander ---
-        "expander_header_bg": "#1e1e30",
-        "expander_content_bg": "#1e1e30",
+        "expander_header_bg": "#12121f",
+        "expander_content_bg": "#12121f",
 
         # --- メインエリア popover ---
         "main_popover_bg_start": "#1a1a30",
@@ -275,13 +275,13 @@ THEMES = {
 
         # --- Streamlit ネイティブ override ---
         "st_app_bg": "#0a0a14",
-        "st_widget_bg": "#1e1e30",
+        "st_widget_bg": "#12121f",
         "st_widget_border": "#3a3a58",
-        "st_input_bg": "#1e1e30",
+        "st_input_bg": "#12121f",
         "st_input_text": "#f8f8f8",
         "st_label_text": "#e8e8f0",
-        "st_caption_text": "#c0c0c8",
-        "st_metric_label": "#e0e0e8",
+        "st_caption_text": "#d0d0d8",
+        "st_metric_label": "#f0f0f8",
         "st_metric_value": "#ffffff",
         "st_header_text": "#ffffff",
         "st_markdown_text": "#f8f8f8",

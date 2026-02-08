@@ -481,8 +481,6 @@ if st.sidebar.button("➕ 新規セッション", use_container_width=True):
     st.session_state.view_mode = "chat"
     st.rerun()
 
-st.sidebar.markdown("---")
-
 # セッション分類
 active_sessions = sorted(
     [(k, v) for k, v in sessions.items() if not v.get("deleted", False) and v.get("status", "active") == "active"],
@@ -815,7 +813,7 @@ if st.session_state.view_mode == "trash":
                 with col4:
                     st.metric("トークン", f"{total_tokens:,}")
                 with col5:
-                    st.metric("コスト", f"${total_cost:.4f}")
+                    st.metric("コスト", f"¥{total_cost * USD_TO_JPY:.2f}")
                 st.markdown("---")
     else:
         st.info("🗑️ ゴミ箱は空です")
@@ -1105,8 +1103,6 @@ else:
         if meta_parts:
             st.caption(" | ".join(meta_parts))
         
-        st.caption("※ セッション途中でモデルを変更することはできません")
-        
         st.markdown("---")
         
         # ========================================
@@ -1128,16 +1124,14 @@ else:
         )
         
         # メトリクス行
-        metric_cols = st.columns([1, 1, 1, 1, 1])
+        metric_cols = st.columns([1, 1, 1, 1])
         with metric_cols[0]:
             st.metric("ターン数", total_turns)
         with metric_cols[1]:
             st.metric("総トークン", f"{total_tokens:,}")
         with metric_cols[2]:
-            st.metric("コスト (USD)", f"${total_cost:.4f}")
-        with metric_cols[3]:
             st.metric("コスト (JPY)", f"¥{total_cost * USD_TO_JPY:.2f}")
-        with metric_cols[4]:
+        with metric_cols[3]:
             st.metric("平均応答時間", f"{avg_response_time:.2f}秒")
         
         st.markdown("---")
@@ -1147,7 +1141,7 @@ else:
         # ========================================
         col_hist, col_bottom = st.columns([4, 1])
         with col_hist:
-            st.subheader("📝 会話履歴")
+            st.subheader("チャットセッション")
         with col_bottom:
             st.markdown(get_nav_bottom_html(
                 nav_bottom_bg=_current_theme["nav_bottom_bg"],
@@ -1235,8 +1229,6 @@ else:
                 st.success("セッションを再開しました")
                 st.rerun()
         else:
-            st.subheader("💬 メッセージ送信")
-            
             with st.form(key="chat_form", clear_on_submit=True):
                 user_input = st.text_area(
                     "プロンプトを入力",
@@ -1248,7 +1240,7 @@ else:
                 
                 col1, col2 = st.columns([1, 5])
                 with col1:
-                    submit_button = st.form_submit_button("📤 送信", type="primary", use_container_width=True)
+                    submit_button = st.form_submit_button("送信", type="primary", use_container_width=True)
         
         if not is_completed and submit_button and user_input.strip():
             # API呼び出し

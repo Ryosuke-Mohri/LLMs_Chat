@@ -176,7 +176,7 @@
         border: 1px solid {{btn_secondary_border}} !important;
         border-radius: 8px !important;
         box-shadow: 0 1px 4px {{shadow_sm}};
-        margin-bottom: 2px !important;
+        margin-bottom: 0px !important;
     }
     [data-testid="stSidebar"] button[kind="secondary"]:hover {
         filter: brightness(1.15) !important;
@@ -194,8 +194,25 @@
     }
     [data-testid="stSidebar"] .stHorizontalBlock {
         gap: 4px !important;
-        margin-bottom: 4px !important;
+        margin-bottom: 0px !important;
         align-items: stretch !important;
+    }
+
+    /* ===== マーカー div の余白を除去 ===== */
+    [data-testid="stSidebar"] .active-session-marker,
+    [data-testid="stSidebar"] .completed-session-marker {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 0 !important;
+        font-size: 0 !important;
+    }
+    [data-testid="stSidebar"] .stElementContainer:has(.active-session-marker),
+    [data-testid="stSidebar"] .stElementContainer:has(.completed-session-marker) {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
     }
 
     /* ===== 新規セッションボタン ===== */
@@ -270,6 +287,9 @@
         padding: 8px !important;
         margin-top: 4px;
         box-shadow: 0 1px 4px {{shadow_xs}};
+    }
+    [data-testid="stSidebar"] details[open] > div .stVerticalBlock {
+        gap: 2px !important;
     }
 
     /* ===== メインエリアのpopover ===== */
