@@ -557,7 +557,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                 
                 # セッション名変更（常にテキスト入力を表示）
                 new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"sidebar_rename_input_{session_id}")
-                if st.button("変更保存", key=f"sidebar_rename_save_{session_id}", use_container_width=True):
+                if st.button("入力した名前を保存", key=f"sidebar_rename_save_{session_id}", use_container_width=True):
                     if new_name and new_name.strip() and new_name.strip() != session_name:
                         log_data = load_log_data()
                         if session_id in log_data.get("sessions", {}):
@@ -575,7 +575,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                         st.rerun()
                 
                 # セッション名生成
-                if st.button("✨ 名前生成", key=f"menu_gen_{session_id}", use_container_width=True):
+                if st.button("✨ LLMで名前を生成", key=f"menu_gen_{session_id}", use_container_width=True):
                     st.session_state.is_processing = True
                     with st.spinner("生成中..."):
                         generated = generate_session_name_with_llm(
@@ -601,7 +601,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                             st.warning("セッション名を生成できませんでした")
                 
                 # セッション終了
-                if st.button("🏁 終了", key=f"menu_end_{session_id}", use_container_width=True):
+                if st.button("✔ セッションを終了", key=f"menu_end_{session_id}", use_container_width=True):
                     logger.info("サイドバー: セッション終了 session_id=%s", session_id)
                     log_data = load_log_data()
                     session_data = log_data["sessions"][session_id]
@@ -640,7 +640,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                 # ===== 終了済セッション: 再開・削除（ダイレクト実行） =====
                 
                 # セッション再開
-                if st.button("🔄 再開", key=f"menu_resume_{session_id}", use_container_width=True):
+                if st.button("🔄 セッションを再開", key=f"menu_resume_{session_id}", use_container_width=True):
                     logger.info("サイドバー: セッション再開 session_id=%s", session_id)
                     log_data = load_log_data()
                     log_data["sessions"][session_id]["status"] = "active"
@@ -658,7 +658,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                     st.rerun()
                 
                 # セッション削除（ゴミ箱へ移動・確認なし）
-                if st.button("🗑️ 削除", key=f"menu_del_{session_id}", use_container_width=True):
+                if st.button("🗑️ セッションを削除", key=f"menu_del_{session_id}", use_container_width=True):
                     logger.info("サイドバー: セッション削除 session_id=%s", session_id)
                     log_data = load_log_data()
                     log_data["sessions"][session_id]["deleted"] = True
@@ -959,13 +959,13 @@ else:
         
         col_left, col_right = st.columns([3, 1])
         with col_right:
-            with st.popover("操作"):
+            with st.popover("Control"):
                 if session_status == "active":
                     # ===== アクティブセッション: 名前変更・名前生成・終了 =====
                     
                     # セッション名変更
                     new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"rename_input_{st.session_state.current_session_id}")
-                    if st.button("入力した名前に変更", key="rename_btn", use_container_width=True):
+                    if st.button("入力した名前を保存", key="rename_btn", use_container_width=True):
                         if new_name and new_name != session_name:
                             log_data = load_log_data()
                             old_name = log_data["sessions"][st.session_state.current_session_id]["session_name"]
@@ -1012,7 +1012,7 @@ else:
                                 st.warning("セッション名を生成できませんでした")
                     
                     # セッション終了
-                    if st.button("🏁 このセッションを終了", key="end_session_btn", use_container_width=True):
+                    if st.button("✔ セッションを終了", key="end_session_btn", use_container_width=True):
                         logger.info("メイン: セッション終了 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
                         session_data = log_data["sessions"][st.session_state.current_session_id]
@@ -1063,7 +1063,7 @@ else:
                         st.rerun()
                     
                     # セッション削除（ゴミ箱へ移動・確認なし）
-                    if st.button("🗑️ このセッションを削除", key="delete_session_btn", use_container_width=True):
+                    if st.button("🗑️ セッションを削除", key="delete_session_btn", use_container_width=True):
                         logger.info("メイン: セッション削除 session_id=%s", st.session_state.current_session_id)
                         log_data = load_log_data()
                         log_data["sessions"][st.session_state.current_session_id]["deleted"] = True
@@ -1141,7 +1141,7 @@ else:
         # ========================================
         col_hist, col_bottom = st.columns([4, 1])
         with col_hist:
-            st.subheader("チャットセッション")
+            st.subheader("Chat Session")
         with col_bottom:
             st.markdown(get_nav_bottom_html(
                 nav_bottom_bg=_current_theme["nav_bottom_bg"],
@@ -1163,7 +1163,7 @@ else:
                 if msg_log:
                     request_ts = msg_log.get("request", {}).get("timestamp", "")
                     if request_ts:
-                        timestamp_str = f'<span style="color:{_current_theme["timestamp_color"]}; font-size:0.8em; float:right;">📤 {format_timestamp(request_ts)}</span>'
+                        timestamp_str = f'<span style="color:{_current_theme["timestamp_color"]}; font-size:0.8em; float:right;">{format_timestamp(request_ts)}</span>'
                 
                 st.markdown(get_user_message_html(
                     timestamp_str=timestamp_str,
@@ -1179,7 +1179,7 @@ else:
                     response_time = msg_log.get("response", {}).get("response_time_seconds", 0)
                     tokens = msg_log.get("metrics", {}).get("total_tokens", 0)
                     cost_jpy = msg_log.get("cost", {}).get("total_cost_jpy", 0)
-                    metrics_str = f"⏱️ {response_time:.2f}秒 | 🔢 {tokens:,}トークン | 💰 ¥{cost_jpy:.2f}"
+                    metrics_str = f"{response_time:.2f}秒 | {tokens:,}トークン | ¥{cost_jpy:.2f}"
                 else:
                     metrics_str = ""
                 
@@ -1210,8 +1210,6 @@ else:
             nav_top_bg=_current_theme["nav_top_bg"],
             nav_text=_current_theme["nav_text"],
         ), unsafe_allow_html=True)
-        
-        st.markdown("---")
     
         # ========================================
         # プロンプト入力フォーム
