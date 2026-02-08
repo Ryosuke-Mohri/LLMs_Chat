@@ -55,7 +55,7 @@ logger = get_logger(__name__)
 # ページ設定
 # ========================================
 st.set_page_config(
-    page_title="LLM Select Chat",
+    page_title="LLMs Chat Lab",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
