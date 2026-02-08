@@ -138,22 +138,39 @@ def format_region_display(region):
 # ========================================
 MODEL_METADATA_PATH = BASE_DIR / "config" / "deployment_models.json"
 _model_metadata_cache = None
+_provider_metadata_cache = None
 
-def load_model_metadata():
-    """config/deployment_models.json からモデルメタデータのリストを返す"""
-    global _model_metadata_cache
+def _load_deployment_config():
+    """config/deployment_models.json を読み込み、models リストと providers dict をキャッシュする"""
+    global _model_metadata_cache, _provider_metadata_cache
     if _model_metadata_cache is not None:
-        return _model_metadata_cache
+        return
     try:
         with open(MODEL_METADATA_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
-        _model_metadata_cache = data
-        logger.debug("load_model_metadata: %d 件ロード", len(data))
-        return data
+        if isinstance(data, list):
+            # 後方互換: フラット配列の場合はそのまま models として扱う
+            _model_metadata_cache = data
+            _provider_metadata_cache = {}
+        else:
+            _model_metadata_cache = data.get("models", [])
+            _provider_metadata_cache = data.get("providers", {})
+        logger.debug("_load_deployment_config: %d モデル, %d プロバイダーをロード",
+                     len(_model_metadata_cache), len(_provider_metadata_cache))
     except Exception:
-        logger.exception("load_model_metadata: ファイル読み込み失敗 (%s)", MODEL_METADATA_PATH)
+        logger.exception("_load_deployment_config: ファイル読み込み失敗 (%s)", MODEL_METADATA_PATH)
         _model_metadata_cache = []
-        return []
+        _provider_metadata_cache = {}
+
+def load_model_metadata():
+    """config/deployment_models.json からモデルメタデータのリストを返す"""
+    _load_deployment_config()
+    return _model_metadata_cache
+
+def load_provider_metadata():
+    """config/deployment_models.json からプロバイダーマスタの dict を返す"""
+    _load_deployment_config()
+    return _provider_metadata_cache
 
 def get_provider_for_deployment(deployment_name):
     """デプロイ名からプロバイダー名を取得。マスタに無い場合は 'その他'。"""
@@ -175,42 +192,17 @@ def get_display_name_for_deployment(deployment_name):
             return m.get("display_name", deployment_name)
     return deployment_name
 
-# プロバイダー別アイコン（OpenAI / Anthropic / 中国系 / その他 で区別）
-PROVIDER_ICONS = {
-    "OpenAI": "🟢",
-    "Anthropic": "🟣",
-    "DeepSeek": "🟠",
-    "Moonshot": "🟠",
-    "xAI": "🔵",
-    "Meta": "🔵",
-}
-
 def get_provider_icon(provider):
-    """プロバイダー名から表示用アイコンを返す。"""
+    """プロバイダー名から表示用アイコンを返す（providers マスタを参照）。"""
     if not provider:
         return "🔵"
-    return PROVIDER_ICONS.get(provider, "🔵")
+    providers = load_provider_metadata()
+    return providers.get(provider, {}).get("icon", "🔵")
 
 # ========================================
 # 料金設定（USD / 1000トークン）
 # ========================================
-# モデル別料金テーブル
-PRICING_TABLE = {
-    "openai": {
-        "default": {"prompt_per_1k": 0.01, "completion_per_1k": 0.03},
-        "gpt-4": {"prompt_per_1k": 0.03, "completion_per_1k": 0.06},
-        "gpt-4.1": {"prompt_per_1k": 0.002, "completion_per_1k": 0.008},
-        "gpt-5": {"prompt_per_1k": 0.005, "completion_per_1k": 0.015},
-    },
-    "anthropic": {
-        "default": {"prompt_per_1k": 0.003, "completion_per_1k": 0.015},
-        "claude-haiku": {"prompt_per_1k": 0.001, "completion_per_1k": 0.005},
-        "claude-sonnet": {"prompt_per_1k": 0.003, "completion_per_1k": 0.015},
-        "claude-opus": {"prompt_per_1k": 0.015, "completion_per_1k": 0.075},
-    }
-}
-
-# デフォルト料金（後方互換性用）
+# デフォルト料金（後方互換性用 / JSON に pricing が無いモデル向け）
 PRICING = {
     "prompt_per_1k": 0.01,
     "completion_per_1k": 0.03,
@@ -218,16 +210,14 @@ PRICING = {
 USD_TO_JPY = 150
 
 def get_pricing_for_model(deployment_name, model_type):
-    """モデルに応じた料金設定を取得"""
-    pricing_category = PRICING_TABLE.get(model_type, PRICING_TABLE["openai"])
-    
-    # モデル名から料金カテゴリを特定
-    dep_lower = deployment_name.lower()
-    for key in pricing_category:
-        if key != "default" and key in dep_lower:
-            return pricing_category[key]
-    
-    return pricing_category["default"]
+    """モデルに応じた料金設定を取得（JSON の pricing フィールドを参照）"""
+    metadata = load_model_metadata()
+    for m in metadata:
+        if m.get("deployment_name") == deployment_name:
+            pricing = m.get("pricing")
+            if pricing:
+                return pricing
+    return PRICING
 
 # ========================================
 # ユーティリティ関数
@@ -277,20 +267,16 @@ def get_api_key_for_region(region):
         return region_info.get("api_key", "")
     return ""
 
-def is_anthropic_model(deployment_name):
-    """Anthropic (Claude) モデルかどうかを判定"""
-    return deployment_name.lower().startswith("claude")
-
 def get_model_type(deployment_name):
-    """モデルタイプを取得"""
-    return "anthropic" if is_anthropic_model(deployment_name) else "openai"
-
-def get_model_type_display(model_type):
-    """モデルタイプの表示用情報を取得"""
-    if model_type == "anthropic":
-        return {"icon": "🟣", "name": "Anthropic (Claude)"}
-    else:
-        return {"icon": "🟢", "name": "OpenAI (GPT)"}
+    """モデルタイプ（API呼び出し方式）を取得。providers マスタの api_type を参照。"""
+    metadata = load_model_metadata()
+    for m in metadata:
+        if m.get("deployment_name") == deployment_name:
+            provider = m.get("provider", "")
+            providers = load_provider_metadata()
+            return providers.get(provider, {}).get("api_type", "openai")
+    # フォールバック: 名前ベース判定（JSON に無いモデル向け）
+    return "anthropic" if deployment_name.lower().startswith("claude") else "openai"
 
 def get_all_models():
     """全モデル情報を取得（config/deployment_models.json から読み込み、sort_order 昇順でソート）"""
@@ -868,7 +854,7 @@ else:
         st.title("新規チャットセッション")
         st.markdown("---")
         
-        st.subheader("🤖 使用するモデルを選択")
+        st.subheader("⬜ 使用するモデルを選択")
         
         if all_models:
             model_options = [m["dropdown_label"] for m in all_models]
@@ -1271,9 +1257,9 @@ else:
                 "チャット送信: session_id=%s, input_chars=%d",
                 st.session_state.current_session_id, len(user_input.strip()),
             )
-            model_type = model_info.get("model_type", "openai")
-            type_display = get_model_type_display(model_type)
             deployment_name = model_info.get("deployment_name", "")
+            model_type = model_info.get("model_type", "openai")
+            spinner_icon = model_info.get("provider_icon") or get_provider_icon(model_info.get("provider", ""))
             
             # API Key を取得（保存されていなければリージョンから取得）
             api_key = model_info.get("api_key", "")
@@ -1288,7 +1274,7 @@ else:
             # モデル別料金を取得
             model_pricing = get_pricing_for_model(deployment_name, model_type)
             
-            with st.spinner(f"🔄 {type_display['icon']} AIが応答を生成中..."):
+            with st.spinner(f"🔄 {spinner_icon} AIが応答を生成中..."):
                 try:
                     # 会話履歴更新
                     st.session_state.conversation_history.append({
