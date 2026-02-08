@@ -555,8 +555,16 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
             if status == "active":
                 # ===== アクティブセッション: 名前変更・名前生成・終了 =====
                 
+                # ウィジェットキーの初期化（widget 描画前に実行）
+                _widget_key = f"sidebar_rename_input_{session_id}"
+                _pending = st.session_state.get(f"_pending_rename_{session_id}", None)
+                if _pending is not None:
+                    st.session_state[_widget_key] = _pending
+                elif _widget_key not in st.session_state:
+                    st.session_state[_widget_key] = session_name
+                
                 # セッション名変更（常にテキスト入力を表示）
-                new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"sidebar_rename_input_{session_id}")
+                new_name = st.text_input("📝 新しいセッション名", key=_widget_key)
                 if st.button("入力した名前を保存", key=f"sidebar_rename_save_{session_id}", use_container_width=True):
                     if new_name and new_name.strip() and new_name.strip() != session_name:
                         log_data = load_log_data()
@@ -571,6 +579,8 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                                 "new_name": new_name.strip()
                             })
                             save_log_data(log_data)
+                        # 次の rerun で widget 描画前に反映される pending キーに保存
+                        st.session_state[f"_pending_rename_{session_id}"] = new_name.strip()
                         st.session_state._close_popover = True
                         st.rerun()
                 
@@ -593,6 +603,8 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                                 "generated_by_llm": True
                             })
                             save_log_data(log_data)
+                            # 次の rerun で widget 描画前に反映される pending キーに保存
+                            st.session_state[f"_pending_rename_{session_id}"] = generated
                             st.session_state.is_processing = False
                             st.session_state._close_popover = True
                             st.rerun()
@@ -963,8 +975,16 @@ else:
                 if session_status == "active":
                     # ===== アクティブセッション: 名前変更・名前生成・終了 =====
                     
+                    # ウィジェットキーの初期化（widget 描画前に実行）
+                    _widget_key = f"rename_input_{st.session_state.current_session_id}"
+                    _pending = st.session_state.pop(f"_pending_rename_{st.session_state.current_session_id}", None)
+                    if _pending is not None:
+                        st.session_state[_widget_key] = _pending
+                    elif _widget_key not in st.session_state:
+                        st.session_state[_widget_key] = session_name
+                    
                     # セッション名変更
-                    new_name = st.text_input("📝 新しいセッション名", value=session_name, key=f"rename_input_{st.session_state.current_session_id}")
+                    new_name = st.text_input("📝 新しいセッション名", key=_widget_key)
                     if st.button("入力した名前を保存", key="rename_btn", use_container_width=True):
                         if new_name and new_name != session_name:
                             log_data = load_log_data()
@@ -978,6 +998,8 @@ else:
                                 "new_name": new_name
                             })
                             save_log_data(log_data)
+                            # 次の rerun で widget 描画前に反映される pending キーに保存
+                            st.session_state[f"_pending_rename_{st.session_state.current_session_id}"] = new_name
                             st.success("セッション名を変更しました")
                             st.session_state._close_popover = True
                             st.rerun()
@@ -1003,6 +1025,8 @@ else:
                                     "generated_by_llm": True
                                 })
                                 save_log_data(log_data)
+                                # 次の rerun で widget 描画前に反映される pending キーに保存
+                                st.session_state[f"_pending_rename_{st.session_state.current_session_id}"] = generated
                                 st.session_state.is_processing = False
                                 st.success(f"生成完了: {generated}")
                                 st.session_state._close_popover = True
