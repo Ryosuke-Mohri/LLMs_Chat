@@ -34,7 +34,21 @@ import anthropic
 load_dotenv()
 
 from lib.logger import get_logger
-from lib.themes import THEMES, generate_theme_css, generate_danger_btn_js
+from lib.themes import THEMES
+from lib.css_loader import get_app_css
+from lib.js_loader import get_danger_btn_js, get_popover_close_html
+from lib.html_loader import (
+    get_loading_overlay_html,
+    get_sidebar_title_html,
+    get_marker_div_html,
+    get_page_anchor_html,
+    get_model_badge_html,
+    get_user_message_html,
+    get_ai_message_html,
+    get_nav_bottom_html,
+    get_nav_top_html,
+    get_copy_button_block_html,
+)
 logger = get_logger(__name__)
 
 # ========================================
@@ -58,40 +72,21 @@ if "app_theme" not in st.session_state:
 # ========================================
 FONT_ZOOM = 0.8
 _current_theme = THEMES[st.session_state.app_theme]
-st.markdown(generate_theme_css(st.session_state.app_theme, FONT_ZOOM), unsafe_allow_html=True)
+st.markdown(get_app_css(st.session_state.app_theme, FONT_ZOOM), unsafe_allow_html=True)
 
 # 危険ボタン（削除系）の data-danger 属性付与 JS
-components.html(generate_danger_btn_js(), height=0)
+components.html(get_danger_btn_js(), height=0)
 
-# (旧 CSS は lib/themes.py の generate_theme_css() に統合済み)
+# (CSS は assets/css/app.css + lib/css_loader.get_app_css)
 
 # LLM処理中オーバーレイ表示
 if st.session_state.get("is_processing", False):
-    st.markdown("""
-    <div class="loading-overlay">
-        <div class="spinner-container">
-            <div class="spinner"></div>
-            <div>AIが処理中です…しばらくお待ちください</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(get_loading_overlay_html(), unsafe_allow_html=True)
 
 # Popover 強制クローズ（フラグが立っている場合、JS で閉じる）
 if st.session_state.get("_close_popover", False):
     st.session_state._close_popover = False
-    components.html("""
-    <script>
-    (function() {
-        var doc = window.parent.document;
-        // Strategy 1: Escape key
-        doc.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true
-        }));
-        // Strategy 2: Body click (closes popover by clicking outside)
-        doc.body.click();
-    })();
-    </script>
-    """, height=0)
+    components.html(get_popover_close_html(), height=0)
 
 # ========================================
 # 定数・パス設定
@@ -486,7 +481,7 @@ all_models = get_all_models()
 # ========================================
 # サイドバー
 # ========================================
-st.sidebar.markdown('<div class="sidebar-title">🐱 LLM Select Chat</div>', unsafe_allow_html=True)
+st.sidebar.markdown(get_sidebar_title_html(), unsafe_allow_html=True)
 
 # ログデータ読み込み
 log_data = load_log_data()
@@ -550,7 +545,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
     
     # CSSマーカーを挿入（セッションタイプ別のスタイル適用用）
     marker_class = "active-session-marker" if session_type == "active" else "completed-session-marker"
-    container.markdown(f'<div class="{marker_class}"></div>', unsafe_allow_html=True)
+    container.markdown(get_marker_div_html(marker_class), unsafe_allow_html=True)
     
     # セッション選択行（カード形式）
     col1, col2 = container.columns([6, 1])
@@ -695,7 +690,7 @@ def render_session_item(session_id, session_info, container=None, show_resume=Fa
                 st.warning("本当に削除しますか？\n⚠️ 削除後は復元できません")
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
+                    st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
                     if st.button("✓ 削除", key=f"confirm_del_{session_id}", type="primary"):
                         logger.info("サイドバー: セッション削除確定 session_id=%s", session_id)
                         log_data = load_log_data()
@@ -742,7 +737,7 @@ st.sidebar.markdown("---")
 
 # --- ゴミ箱 ---
 # CSSマーカーを挿入
-st.sidebar.markdown('<div class="trash-button-marker"></div>', unsafe_allow_html=True)
+st.sidebar.markdown(get_marker_div_html("trash-button-marker"), unsafe_allow_html=True)
 if st.sidebar.button(f"🗑️ ゴミ箱 ({len(deleted_sessions)})", use_container_width=True):
     st.session_state.view_mode = "trash"
     st.session_state.current_session_id = None
@@ -771,7 +766,7 @@ if st.session_state.view_mode == "trash":
     
     if deleted_sessions:
         # ゴミ箱を空にするボタン（上部）
-        st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
+        st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
         if st.button("🗑️ ゴミ箱を空にする", type="primary", use_container_width=False):
             logger.info("ゴミ箱を空にする操作")
             log_data = load_log_data()
@@ -822,7 +817,7 @@ if st.session_state.view_mode == "trash":
         
         # 選択したセッションを削除するボタン（1つ以上チェック時のみ有効）
         if has_checked:
-            st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
+            st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
             if st.button("選択したセッションを削除", type="primary", use_container_width=False):
                 log_data = load_log_data()
                 for sid in trash_checked_ids:
@@ -832,7 +827,7 @@ if st.session_state.view_mode == "trash":
                 save_log_data(log_data)
                 st.rerun()
         else:
-            st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
+            st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
             st.button("選択したセッションを削除", type="primary", disabled=True, use_container_width=False, help="削除するセッションを1つ以上チェックしてください")
     else:
         st.info("🗑️ ゴミ箱は空です")
@@ -1077,7 +1072,7 @@ else:
                     st.warning("本当に削除しますか？\n⚠️ 削除後は復元できません")
                     col_a, col_b = st.columns(2)
                     with col_a:
-                        st.markdown('<div class="danger-btn-marker"></div>', unsafe_allow_html=True)
+                        st.markdown(get_marker_div_html("danger-btn-marker"), unsafe_allow_html=True)
                         if st.button("✓ 削除", key="confirm_del_main", type="primary"):
                             logger.info("メイン: セッション削除確定 session_id=%s", st.session_state.current_session_id)
                             log_data = load_log_data()
@@ -1107,11 +1102,12 @@ else:
         provider = model_info.get("provider") or model_info.get("constructor") or get_provider_for_deployment(model_info.get("deployment_name", ""))
         provider_icon = model_info.get("provider_icon") or model_info.get("constructor_icon") or get_provider_icon(provider)
         model_display_name = model_info.get("display_name") or get_display_name_for_deployment(model_info.get("deployment_name", ""))
-        st.markdown(f"""
-        <div class="model-badge">
-            {provider_icon} {model_display_name} | 📍 {format_region_display(model_info.get('region', ''))} | {provider}
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(get_model_badge_html(
+            provider_icon=provider_icon,
+            model_display_name=model_display_name,
+            region_display=format_region_display(model_info.get("region", "")),
+            provider=provider,
+        ), unsafe_allow_html=True)
         # 追加メタデータ表示
         header_cap_tags = model_info.get("capability_tag", [])
         if isinstance(header_cap_tags, list):
@@ -1136,7 +1132,7 @@ else:
         # メトリクス表示
         # ========================================
         # ページ上部アンカー
-        st.markdown('<div id="page-top"></div>', unsafe_allow_html=True)
+        st.markdown(get_page_anchor_html("page-top"), unsafe_allow_html=True)
         
         stats = current_session.get("stats")
         messages = current_session.get("messages", [])
@@ -1172,13 +1168,10 @@ else:
         with col_hist:
             st.subheader("📝 会話履歴")
         with col_bottom:
-            st.markdown(f"""
-            <a href="#page-bottom" style="text-decoration:none;">
-                <div style="text-align:center; padding:8px; background:{_current_theme['nav_bottom_bg']}; border-radius:8px; cursor:pointer; color:{_current_theme['nav_text']};">
-                    ⬇️ 最下部へ
-                </div>
-            </a>
-            """, unsafe_allow_html=True)
+            st.markdown(get_nav_bottom_html(
+                nav_bottom_bg=_current_theme["nav_bottom_bg"],
+                nav_text=_current_theme["nav_text"],
+            ), unsafe_allow_html=True)
         
         conversation = st.session_state.conversation_history
         
@@ -1197,12 +1190,10 @@ else:
                     if request_ts:
                         timestamp_str = f'<span style="color:{_current_theme["timestamp_color"]}; font-size:0.8em; float:right;">📤 {format_timestamp(request_ts)}</span>'
                 
-                st.markdown(f"""
-                <div class="user-message">
-                    <strong>🧑 ユーザー</strong>{timestamp_str}
-                    <p style="margin-top:10px;">{msg['content']}</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(get_user_message_html(
+                    timestamp_str=timestamp_str,
+                    content=msg["content"],
+                ), unsafe_allow_html=True)
             
             elif msg["role"] == "assistant":
                 # 対応するメッセージログを検索
@@ -1223,58 +1214,27 @@ else:
                 escaped_content = msg['content'].replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r').replace('`', '\\`')
                 
                 # AI回答表示（コピーボタンなしのマークダウン部分）
-                st.markdown(f"""
-                <div class="ai-message">
-                    <strong>🤖 AI</strong> <span style="color:{_current_theme['ai_metrics_color']}; font-size:0.9em;">{metrics_str}</span>
-                    <div style="margin-top:10px;">{msg['content']}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown(get_ai_message_html(
+                    ai_metrics_color=_current_theme["ai_metrics_color"],
+                    metrics_str=metrics_str,
+                    content=msg["content"],
+                ), unsafe_allow_html=True)
                 
                 # コピーボタン（components.htmlで動作するJavaScript）
-                copy_html = f"""
-                <div style="text-align: right; margin-top: -10px; margin-bottom: 10px;">
-                    <button id="copy_btn_{msg_id}" onclick="copyText_{msg_id}()" style="
-                        background: {_current_theme['copy_btn_bg']};
-                        border: none;
-                        padding: 6px 12px;
-                        border-radius: 6px;
-                        cursor: pointer;
-                        font-size: 0.85em;
-                        color: {_current_theme['copy_btn_text']};
-                    ">📋 Copy</button>
-                </div>
-                <script>
-                function copyText_{msg_id}() {{
-                    const text = `{escaped_content}`;
-                    navigator.clipboard.writeText(text).then(function() {{
-                        var btn = document.getElementById('copy_btn_{msg_id}');
-                        btn.innerHTML = '✓ Copied!';
-                        btn.style.background = '{_current_theme['copy_btn_copied_bg']}';
-                        btn.style.color = '{_current_theme['copy_btn_copied_text']}';
-                        setTimeout(function() {{
-                            btn.innerHTML = '📋 Copy';
-                            btn.style.background = '{_current_theme['copy_btn_bg']}';
-                            btn.style.color = '{_current_theme['copy_btn_text']}';
-                        }}, 2000);
-                    }}).catch(function(err) {{
-                        alert('コピーに失敗しました');
-                    }});
-                }}
-                </script>
-                """
-                components.html(copy_html, height=40)
+                components.html(get_copy_button_block_html(
+                    msg_id=msg_id,
+                    copy_btn_bg=_current_theme["copy_btn_bg"],
+                    copy_btn_text=_current_theme["copy_btn_text"],
+                    copy_btn_copied_bg=_current_theme["copy_btn_copied_bg"],
+                    copy_btn_copied_text=_current_theme["copy_btn_copied_text"],
+                    escaped_content=escaped_content,
+                ), height=40)
         
         # 最上部へのナビゲーション
-        st.markdown(f"""
-        <div style="display:flex; justify-content:center; margin:10px 0;">
-            <a href="#page-top" style="text-decoration:none;">
-                <div style="text-align:center; padding:8px 16px; background:{_current_theme['nav_top_bg']}; border-radius:8px; cursor:pointer; color:{_current_theme['nav_text']};">
-                    ⬆️ 最上部へ
-                </div>
-            </a>
-        </div>
-        <div id="page-bottom"></div>
-        """, unsafe_allow_html=True)
+        st.markdown(get_nav_top_html(
+            nav_top_bg=_current_theme["nav_top_bg"],
+            nav_text=_current_theme["nav_text"],
+        ), unsafe_allow_html=True)
         
         st.markdown("---")
     

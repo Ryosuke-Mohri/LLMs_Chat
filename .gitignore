@@ -1,3 +1,4 @@
+# プロジェクト: lib/, assets/, .streamlit/ は追跡。data/, config/, .env は無視。
 # PoC フォルダ（フォルダと中身を無視）
 PoC/
 

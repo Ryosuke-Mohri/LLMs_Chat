@@ -1,0 +1,29 @@
+<div style="text-align: right; margin-top: -10px; margin-bottom: 10px;">
+    <button id="copy_btn_{{msg_id}}" onclick="copyText_{{msg_id}}()" style="
+        background: {{copy_btn_bg}};
+        border: none;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85em;
+        color: {{copy_btn_text}};
+    ">📋 Copy</button>
+</div>
+<script>
+function copyText_{{msg_id}}() {
+    const text = `{{escaped_content}}`;
+    navigator.clipboard.writeText(text).then(function() {
+        var btn = document.getElementById('copy_btn_{{msg_id}}');
+        btn.innerHTML = '✓ Copied!';
+        btn.style.background = '{{copy_btn_copied_bg}}';
+        btn.style.color = '{{copy_btn_copied_text}}';
+        setTimeout(function() {
+            btn.innerHTML = '📋 Copy';
+            btn.style.background = '{{copy_btn_bg}}';
+            btn.style.color = '{{copy_btn_text}}';
+        }, 2000);
+    }).catch(function(err) {
+        alert('コピーに失敗しました');
+    });
+}
+</script>
