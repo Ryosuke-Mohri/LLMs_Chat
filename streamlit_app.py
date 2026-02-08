@@ -861,7 +861,7 @@ else:
     # ========================================
     if st.session_state.is_new_session or current_session is None:
         # 新規セッション - モデル選択
-        st.title("新規チャットセッション")
+        st.title("新規セッション")
         st.markdown("---")
         
         st.subheader("⬜ 使用するモデルを選択")
@@ -871,7 +871,8 @@ else:
             selected_dropdown_label = st.selectbox(
                 "モデル選択",
                 model_options,
-                index=0
+                index=0,
+                label_visibility="collapsed"
             )
             
             # 選択されたモデル情報を取得
@@ -882,15 +883,15 @@ else:
             
             if selected_model_info:
                 cap_tags = ", ".join(selected_model_info.get("capability_tag", []))
-                st.info(f"""
-                **選択されたモデル:**
-                - モデル名: `{selected_model_info['display_name']}`
-                - プロバイダー: {selected_model_info.get('provider_icon', '🔵')} `{selected_model_info.get('provider', 'その他')}`
-                - リージョン: `{format_region_display(selected_model_info.get('region', ''))}`
-                - リリース: `{selected_model_info.get('release_date', '')}`
-                - 用途タグ: `{cap_tags}`
-                - 利用推奨: `{selected_model_info.get('recommended_usage', '')}`
-                """)
+                _td = "border:none; padding:4px 0; font-weight:600; font-size:0.9rem; vertical-align:top;"
+                st.markdown(f"""<table style="border:none; border-collapse:collapse; margin-top:4px;">
+<tr><td style="{_td} width:140px; white-space:nowrap;">モデル名</td><td style="{_td}">{selected_model_info['display_name']}</td></tr>
+<tr><td style="{_td} white-space:nowrap;">プロバイダー</td><td style="{_td}">{selected_model_info.get('provider', 'その他')}</td></tr>
+<tr><td style="{_td} white-space:nowrap;">リージョン</td><td style="{_td}">{format_region_display(selected_model_info.get('region', ''))}</td></tr>
+<tr><td style="{_td} white-space:nowrap;">リリース</td><td style="{_td}">{selected_model_info.get('release_date', '')}</td></tr>
+<tr><td style="{_td} white-space:nowrap;">用途タグ</td><td style="{_td}">{cap_tags}</td></tr>
+<tr><td style="{_td} white-space:nowrap;">利用推奨</td><td style="{_td}">{selected_model_info.get('recommended_usage', '')}</td></tr>
+</table>""", unsafe_allow_html=True)
                 
                 # セッション開始ボタン
                 if st.button("🚀 チャットを開始", type="primary", use_container_width=True):
